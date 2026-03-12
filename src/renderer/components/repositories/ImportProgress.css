@@ -1,0 +1,113 @@
+.import-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.import-progress h3 {
+  margin: 0;
+}
+
+.import-progress__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.import-progress__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.import-progress__item--complete {
+  background: var(--color-success-bg, #f0fdf4);
+}
+
+.import-progress__item--error {
+  background: var(--color-danger-bg, #fef2f2);
+}
+
+.import-progress__icon {
+  font-size: 1.25rem;
+}
+
+.import-progress__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+}
+
+.import-progress__name {
+  font-weight: 500;
+}
+
+.import-progress__status {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.import-progress__item--error .import-progress__status {
+  color: var(--color-danger, #ef4444);
+}
+
+.import-progress__retry {
+  padding: 0.25rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-danger, #ef4444);
+  color: white;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.import-progress__retry:hover {
+  background: var(--color-danger-dark, #dc2626);
+}
+
+.import-progress__summary {
+  padding: 1rem;
+  background: var(--color-success-bg, #f0fdf4);
+  border-radius: 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.import-progress__summary-text {
+  margin: 0;
+  color: var(--color-success, #22c55e);
+  font-weight: 500;
+}
+
+.import-progress__summary-errors {
+  color: var(--color-danger, #ef4444);
+}
+
+.import-progress__continue-btn {
+  padding: 0.5rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary, #3b82f6);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.import-progress__continue-btn:hover {
+  background: var(--color-primary-dark, #2563eb);
+}
+
+.import-progress__loading {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-muted, #6b7280);
+}

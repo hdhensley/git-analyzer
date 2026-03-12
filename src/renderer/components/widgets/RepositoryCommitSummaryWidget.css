@@ -1,0 +1,138 @@
+.repo-commit-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.repo-commit-summary--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-muted, #6b7280);
+}
+
+.repo-commit-summary__repository {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.repo-commit-summary__repo-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  background: var(--bg-secondary, #f9fafb);
+  cursor: pointer;
+  text-align: left;
+}
+
+.repo-commit-summary__repo-header:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.repo-commit-summary__expand-icon {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.repo-commit-summary__repo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.repo-commit-summary__repo-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.repo-commit-summary__repo-stats {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.repo-commit-summary__messages {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.repo-commit-summary__message {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem 0.5rem 2rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  font-size: 0.875rem;
+  align-items: baseline;
+}
+
+.repo-commit-summary__message:last-child {
+  border-bottom: none;
+}
+
+.repo-commit-summary__message-date {
+  color: var(--color-muted, #6b7280);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.repo-commit-summary__message-branch {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: 9999px;
+  color: var(--color-muted, #6b7280);
+  font-family: monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.repo-commit-summary__message-author {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.repo-commit-summary__message-text {
+  word-break: break-word;
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+}
+
+.repo-commit-summary__message-text {
+  word-break: break-word;
+}
+
+.repo-commit-summary__expand-btn {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary, #3b82f6);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.repo-commit-summary__expand-btn:hover {
+  text-decoration: underline;
+}
+
+.repo-commit-summary__message-hash {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}

@@ -1,0 +1,106 @@
+.chart-widget {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  overflow: visible;
+  transition: all 0.2s ease;
+  width: 100%;
+  min-width: 0;
+}
+
+.chart-widget--collapsed {
+  /* Collapsed state styling if needed */
+}
+
+.chart-widget__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.chart-widget__header:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.chart-widget--collapsed .chart-widget__header {
+  border-bottom: none;
+}
+
+.chart-widget__header-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chart-widget__title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chart-widget__description {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.chart-widget__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  background: white;
+  color: var(--color-muted, #6b7280);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chart-widget__collapse-btn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  border-color: var(--color-primary, #3b82f6);
+  color: var(--color-primary, #3b82f6);
+}
+
+.chart-widget__content {
+  padding: 1rem;
+  min-height: 200px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.chart-widget__error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--color-danger-bg, #fef2f2);
+  color: var(--color-danger, #ef4444);
+  border-radius: 6px;
+}
+
+.chart-widget__error-icon {
+  font-size: 1.25rem;
+}
+
+.chart-widget__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--color-muted, #6b7280);
+  text-align: center;
+}

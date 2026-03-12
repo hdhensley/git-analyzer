@@ -1,0 +1,77 @@
+.date-range-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.date-range-filter__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.date-range-filter__preset {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 9999px;
+  background: white;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-range-filter__preset:hover {
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.date-range-filter__preset--active {
+  background: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary, #3b82f6);
+  color: white;
+}
+
+.date-range-filter__custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.date-range-filter__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.date-range-filter__field label {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.date-range-filter__field input {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.date-range-filter__clear {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: white;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.date-range-filter__clear:hover {
+  background: var(--bg-secondary, #f3f4f6);
+}
+
+.date-range-filter__error {
+  padding: 0.5rem;
+  background: var(--color-danger-bg, #fef2f2);
+  color: var(--color-danger, #ef4444);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
