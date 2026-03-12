@@ -1,6 +1,6 @@
 {
   "name": "git-analytics-dashboard",
-  "version": "1.0.0",
+  "version": "0.9.2",
   "email": "daniel@overzealouspelican.com",
   "description": "Cross-platform desktop application for git analytics across GitHub and Bitbucket repositories",
   "main": "dist/main/main.js",
