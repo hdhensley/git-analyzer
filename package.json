@@ -32,7 +32,10 @@
     "github",
     "bitbucket"
   ],
-  "author": "",
+  "author": {
+    "name": "Daniel Hensley",
+    "email": "daniel@overzealouspelican.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
