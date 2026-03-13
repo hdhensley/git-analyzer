@@ -1,7 +1,7 @@
 .day-hour-heatmap { display: flex; flex-direction: column; gap: 0.75rem; }
 .day-hour-heatmap--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted, #6b7280); }
 
-.day-hour-heatmap__grid-wrapper { overflow-x: auto; }
+.day-hour-heatmap__grid-wrapper { overflow-x: auto; overflow-y: visible; position: relative; }
 
 .day-hour-heatmap__table {
   border-collapse: separate;
@@ -61,6 +61,19 @@
   white-space: nowrap;
   z-index: 10;
   pointer-events: none;
+}
+
+/* Keep tooltips from clipping on the left edge */
+.day-hour-heatmap__table tr td:nth-child(-n+5) .day-hour-heatmap__cell:hover::after {
+  left: 0;
+  transform: none;
+}
+
+/* Keep tooltips from clipping on the right edge */
+.day-hour-heatmap__table tr td:nth-last-child(-n+4) .day-hour-heatmap__cell:hover::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .day-hour-heatmap__legend {

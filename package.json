@@ -71,7 +71,7 @@
   },
   "build": {
     "appId": "com.overzealouspelican.gitanalytics-dashboard",
-    "productName": "Git Analytics Dashboard",
+    "productName": "Git Analyzer",
     "directories": {
       "output": "release"
     },

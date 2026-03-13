@@ -8,6 +8,10 @@ let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Pin the userData directory so renaming the app doesn't lose the database
+app.setPath('userData', path.join(app.getPath('appData'), 'git-analytics-dashboard'));
+app.setName('Git Analyzer');
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,

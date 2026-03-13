@@ -7,8 +7,8 @@ export function AuthorRepoMatrixWidget({ commits, authorGrouping }: ChartWidgetP
 
   const { authors, repos, matrix, maxCount, collaborationDays } = useMemo(() => {
     const authorSet = new Map<string, number>();
-    const repoSet = new Map<string, string>(); // id -> name
-    const m = new Map<string, number>(); // "author|repoId" -> count
+    const repoSet = new Map<string, string>();
+    const m = new Map<string, number>();
 
     for (const c of commits) {
       const authorKey = groupByName ? c.authorName : c.authorEmail;
@@ -22,7 +22,6 @@ export function AuthorRepoMatrixWidget({ commits, authorGrouping }: ChartWidgetP
     const sortedRepos = Array.from(repoSet.entries()).map(([id, name]) => ({ id, name }));
     const max = Math.max(...Array.from(m.values()), 1);
 
-    // Collaboration: days where multiple authors commit to same repo
     const dayRepoAuthors = new Map<string, Set<string>>();
     for (const c of commits) {
       const d = new Date(c.date);
@@ -56,27 +55,36 @@ export function AuthorRepoMatrixWidget({ commits, authorGrouping }: ChartWidgetP
         <span className="author-repo-matrix__stat-sub">(days where 2+ contributors committed to the same repo)</span>
       </div>
       <div className="author-repo-matrix__grid-wrapper">
-        <div className="author-repo-matrix__grid">
-          <div className="author-repo-matrix__corner" />
-          {repos.map(r => (
-            <span key={r.id} className="author-repo-matrix__repo-label" title={r.name}>{r.name}</span>
-          ))}
-          {authors.slice(0, 20).map(author => (
-            <div key={author} className="author-repo-matrix__row">
-              <span className="author-repo-matrix__author-label" title={author}>{author}</span>
-              {repos.map(r => {
-                const count = matrix.get(`${author}|${r.id}`) ?? 0;
-                return (
-                  <div
-                    key={r.id}
-                    className={`author-repo-matrix__cell author-repo-matrix__cell--level-${getLevel(count)}`}
-                    data-tooltip={`${author} → ${r.name}: ${count} commits`}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+        <table className="author-repo-matrix__table">
+          <thead>
+            <tr>
+              <th className="author-repo-matrix__corner" />
+              {repos.map(r => (
+                <th key={r.id} className="author-repo-matrix__repo-header">
+                  <span className="author-repo-matrix__repo-label" title={r.name}>{r.name}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {authors.slice(0, 20).map(author => (
+              <tr key={author}>
+                <td className="author-repo-matrix__author-label" title={author}>{author}</td>
+                {repos.map(r => {
+                  const count = matrix.get(`${author}|${r.id}`) ?? 0;
+                  return (
+                    <td key={r.id} className="author-repo-matrix__cell-td">
+                      <div
+                        className={`author-repo-matrix__cell author-repo-matrix__cell--level-${getLevel(count)}`}
+                        data-tooltip={`${author} → ${r.name}: ${count} commits`}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <div className="author-repo-matrix__legend">
         <span>None</span>
