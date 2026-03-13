@@ -1,0 +1,26 @@
+.bus-factor { display: flex; flex-direction: column; gap: 0.75rem; }
+.bus-factor--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted, #6b7280); }
+
+.bus-factor__repo { padding: 0.75rem 1rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; }
+.bus-factor__repo--risk { border-color: #fca5a5; background: #fef2f2; }
+.bus-factor__repo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.bus-factor__repo-name { font-weight: 500; font-size: 0.875rem; }
+
+.bus-factor__badge {
+  padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600;
+}
+.bus-factor__badge--danger { background: #fee2e2; color: #dc2626; }
+.bus-factor__badge--warn { background: #fef3c7; color: #d97706; }
+.bus-factor__badge--ok { background: #dcfce7; color: #16a34a; }
+
+.bus-factor__bar-stack { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 1px; }
+.bus-factor__segment { height: 100%; min-width: 4px; }
+.bus-factor__segment:nth-child(1) { background: var(--color-primary, #3b82f6); }
+.bus-factor__segment:nth-child(2) { background: #60a5fa; }
+.bus-factor__segment:nth-child(3) { background: #93c5fd; }
+.bus-factor__segment:nth-child(4) { background: #bfdbfe; }
+.bus-factor__segment:nth-child(5) { background: #dbeafe; }
+
+.bus-factor__contributors { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
+.bus-factor__contributor { font-size: 0.75rem; color: var(--color-muted, #6b7280); }
+.bus-factor__contributor-pct { font-weight: 600; color: var(--color-primary, #3b82f6); }

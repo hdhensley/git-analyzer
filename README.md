@@ -24,6 +24,18 @@ Cross-platform Electron desktop app for visualizing git activity across GitHub, 
 - keytar (OS keychain)
 - electron-builder (packaging)
 
+## Installation (Linux)
+
+Download and install the latest release with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hdhensley/git-analyzer/main/install.sh | bash
+```
+
+This will install the AppImage to `~/.local/bin/git-analytics-dashboard` if that directory is in your PATH, otherwise to `/usr/local/bin/git-analytics-dashboard` (requires sudo).
+
+To update, run the same command — it overwrites the existing binary.
+
 ## Getting Started
 
 ### Prerequisites

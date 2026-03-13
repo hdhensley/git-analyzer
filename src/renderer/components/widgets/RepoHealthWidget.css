@@ -1,0 +1,21 @@
+.repo-health { display: flex; flex-direction: column; gap: 0.5rem; }
+.repo-health--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted, #6b7280); }
+
+.repo-health__table { display: flex; flex-direction: column; gap: 0; overflow-x: auto; }
+.repo-health__header-row {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-muted, #6b7280); border-bottom: 2px solid var(--border-color, #e5e7eb);
+}
+.repo-health__row {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  font-size: 0.8rem; border-bottom: 1px solid var(--border-color, #f3f4f6); align-items: center;
+}
+.repo-health__row:hover { background: var(--bg-secondary, #f9fafb); }
+.repo-health__repo-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.repo-health__staleness { font-weight: 500; }
+.repo-health__staleness--fresh { color: #16a34a; }
+.repo-health__staleness--recent { color: #d97706; }
+.repo-health__staleness--stale { color: #ea580c; }
+.repo-health__staleness--dead { color: #dc2626; }

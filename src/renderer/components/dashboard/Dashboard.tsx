@@ -3,7 +3,7 @@ import { useElectronAPI } from '../../hooks';
 import { AuthStatus } from '../auth';
 import { RepositoryList, ImportProgress, LocalRepositoryBrowser } from '../repositories';
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
-import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition } from '../widgets';
+import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition } from '../widgets';
 import type { Repository, Commit, DateRange, DateRangePreset, UserPreferences } from '../../../shared/types';
 import type { AuthorGrouping } from '../widgets';
 import './Dashboard.css';
@@ -13,9 +13,16 @@ WidgetRegistry.register(CommitsPerUserWidgetDefinition);
 WidgetRegistry.register(MessageSummaryWidgetDefinition);
 WidgetRegistry.register(RepositoryCommitSummaryWidgetDefinition);
 WidgetRegistry.register(ContributionGraphWidgetDefinition);
+WidgetRegistry.register(CommitFrequencyWidgetDefinition);
+WidgetRegistry.register(DayHourHeatmapWidgetDefinition);
+WidgetRegistry.register(StreakWidgetDefinition);
+WidgetRegistry.register(BusFactorWidgetDefinition);
+WidgetRegistry.register(CommitMessageAnalysisWidgetDefinition);
+WidgetRegistry.register(RepoHealthWidgetDefinition);
+WidgetRegistry.register(AuthorRepoMatrixWidgetDefinition);
 
 type View = 'connect' | 'import' | 'importing' | 'analytics';
-type AnalyticsTab = 'overview' | 'by-user' | 'by-repository';
+type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'insights';
 type ImportSource = null | 'local' | 'github' | 'bitbucket';
 
 export function Dashboard() {
@@ -379,6 +386,13 @@ export function Dashboard() {
                 >
                   By Repository
                 </button>
+                <button
+                  type="button"
+                  className={`dashboard__tab ${analyticsTab === 'insights' ? 'dashboard__tab--active' : ''}`}
+                  onClick={() => setAnalyticsTab('insights')}
+                >
+                  Insights
+                </button>
 
                 <div className="dashboard__grouping-toggle">
                   <span className="dashboard__grouping-label">Group by:</span>
@@ -420,8 +434,26 @@ export function Dashboard() {
                       onError={handleWidgetError}
                     />
                     <ChartWidget
+                      key="commit-frequency"
+                      definition={CommitFrequencyWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
                       key="commits-per-user"
                       definition={CommitsPerUserWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="day-hour-heatmap"
+                      definition={DayHourHeatmapWidgetDefinition}
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
@@ -432,27 +464,81 @@ export function Dashboard() {
                 )}
 
                 {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-user' && (
-                  <ChartWidget
-                    key="message-summary"
-                    definition={MessageSummaryWidgetDefinition}
-                    commits={commits}
-                    dateRange={dateRange}
-                    selectedRepoIds={selectedRepoIds}
-                    authorGrouping={authorGrouping}
-                    onError={handleWidgetError}
-                  />
+                  <>
+                    <ChartWidget
+                      key="message-summary"
+                      definition={MessageSummaryWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="streaks"
+                      definition={StreakWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="author-repo-matrix"
+                      definition={AuthorRepoMatrixWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                  </>
                 )}
 
                 {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-repository' && (
-                  <ChartWidget
-                    key="repository-commit-summary"
-                    definition={RepositoryCommitSummaryWidgetDefinition}
-                    commits={commits}
-                    dateRange={dateRange}
-                    selectedRepoIds={selectedRepoIds}
-                    authorGrouping={authorGrouping}
-                    onError={handleWidgetError}
-                  />
+                  <>
+                    <ChartWidget
+                      key="repository-commit-summary"
+                      definition={RepositoryCommitSummaryWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="repo-health"
+                      definition={RepoHealthWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                  </>
+                )}
+
+                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'insights' && (
+                  <>
+                    <ChartWidget
+                      key="bus-factor"
+                      definition={BusFactorWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="commit-message-analysis"
+                      definition={CommitMessageAnalysisWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                  </>
                 )}
               </div>
             </div>

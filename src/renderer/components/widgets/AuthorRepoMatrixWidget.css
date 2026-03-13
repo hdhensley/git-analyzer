@@ -1,0 +1,39 @@
+.author-repo-matrix { display: flex; flex-direction: column; gap: 0.75rem; }
+.author-repo-matrix--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted, #6b7280); }
+
+.author-repo-matrix__summary { display: flex; align-items: baseline; gap: 0.5rem; }
+.author-repo-matrix__stat { font-size: 0.875rem; font-weight: 600; color: var(--color-primary, #3b82f6); }
+.author-repo-matrix__stat-sub { font-size: 0.75rem; color: var(--color-muted, #6b7280); }
+
+.author-repo-matrix__grid-wrapper { overflow-x: auto; }
+.author-repo-matrix__grid { display: flex; flex-direction: column; gap: 2px; }
+.author-repo-matrix__corner { width: 120px; flex-shrink: 0; }
+
+.author-repo-matrix__grid > div:first-child { display: flex; gap: 2px; padding-left: 122px; }
+.author-repo-matrix__repo-label {
+  width: 22px; font-size: 0.55rem; color: var(--color-muted, #6b7280); writing-mode: vertical-rl;
+  text-orientation: mixed; transform: rotate(180deg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 80px;
+}
+
+.author-repo-matrix__row { display: flex; align-items: center; gap: 2px; }
+.author-repo-matrix__author-label {
+  width: 120px; flex-shrink: 0; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: right; padding-right: 4px;
+}
+
+.author-repo-matrix__cell {
+  width: 22px; height: 22px; border-radius: 3px; position: relative; cursor: default;
+}
+.author-repo-matrix__cell--level-0 { background: var(--bg-secondary, #ebedf0); }
+.author-repo-matrix__cell--level-1 { background: #9be9a8; }
+.author-repo-matrix__cell--level-2 { background: #40c463; }
+.author-repo-matrix__cell--level-3 { background: #30a14e; }
+.author-repo-matrix__cell--level-4 { background: #216e39; }
+
+.author-repo-matrix__cell:hover::after {
+  content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #24292f; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; white-space: nowrap; z-index: 10; pointer-events: none;
+}
+
+.author-repo-matrix__legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 0.7rem; color: var(--color-muted, #6b7280); }
+.author-repo-matrix__legend-cell { width: 14px; height: 14px; border-radius: 3px; }

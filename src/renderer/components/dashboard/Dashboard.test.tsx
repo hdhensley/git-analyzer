@@ -35,6 +35,13 @@ vi.mock('../widgets', () => ({
   MessageSummaryWidgetDefinition: {},
   RepositoryCommitSummaryWidgetDefinition: {},
   ContributionGraphWidgetDefinition: {},
+  CommitFrequencyWidgetDefinition: {},
+  DayHourHeatmapWidgetDefinition: {},
+  StreakWidgetDefinition: {},
+  BusFactorWidgetDefinition: {},
+  CommitMessageAnalysisWidgetDefinition: {},
+  RepoHealthWidgetDefinition: {},
+  AuthorRepoMatrixWidgetDefinition: {},
 }));
 
 describe('Dashboard', () => {
