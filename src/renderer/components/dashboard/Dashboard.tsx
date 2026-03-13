@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
 import { AuthStatus } from '../auth';
 import { RepositoryList, ImportProgress, LocalRepositoryBrowser } from '../repositories';
@@ -48,6 +48,15 @@ export function Dashboard() {
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset | undefined>();
   const [loading, setLoading] = useState(false);
   const [authorGrouping, setAuthorGrouping] = useState<AuthorGrouping>('name');
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
+  const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
+  const lastSyncRef = useRef<number>(0);
+  const syncingRef = useRef(false);
+
+  const SYNC_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+  const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
   // Load preferences on mount (only when api is available)
   useEffect(() => {
@@ -62,6 +71,28 @@ export function Dashboard() {
       fetchCommits();
     }
   }, [api, selectedRepoIds, dateRange, view]);
+
+  // Auto-sync on window focus (with cooldown)
+  useEffect(() => {
+    if (!api) return;
+    const cleanup = api.onSyncTrigger(() => {
+      if (syncingRef.current) return;
+      if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
+      handleSync();
+    });
+    return cleanup;
+  }, [api]);
+
+  // Background sync interval (10 min)
+  useEffect(() => {
+    if (!api) return;
+    const id = setInterval(() => {
+      if (syncingRef.current) return;
+      if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
+      handleSync();
+    }, SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [api]);
 
   const loadPreferences = async () => {
     if (!api) {
@@ -154,6 +185,41 @@ export function Dashboard() {
 
   const handleWidgetError = (error: Error) => {
     console.error('Widget error:', error);
+  };
+
+  const handleSync = async () => {
+    if (!api || syncing) return;
+    syncingRef.current = true;
+    setSyncing(true);
+    setSyncStatus('Syncing...');
+    setSyncErrors([]);
+    setSyncErrorsExpanded(false);
+    try {
+      const result = await api.repositories.sync();
+      const now = new Date();
+      lastSyncRef.current = now.getTime();
+      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (result.totalNewCommits > 0) {
+        setSyncStatus(`Synced ${result.totalNewCommits} new commit${result.totalNewCommits !== 1 ? 's' : ''} from ${result.syncedRepos} repo${result.syncedRepos !== 1 ? 's' : ''}`);
+        await fetchCommits();
+      } else {
+        setSyncStatus(`Everything up to date as of ${timeStr}`);
+      }
+      if (result.errors.length > 0) {
+        setSyncErrors(result.errors);
+        setSyncStatus(prev => `${prev} (${result.errors.length} error${result.errors.length !== 1 ? 's' : ''})`);
+      } else {
+        // Auto-clear status after 5s only when no errors
+        setTimeout(() => setSyncStatus(null), 5000);
+      }
+    } catch (err) {
+      setSyncStatus('Sync failed');
+      console.error('Sync error:', err);
+      setTimeout(() => setSyncStatus(null), 5000);
+    } finally {
+      syncingRef.current = false;
+      setSyncing(false);
+    }
   };
 
   const anyConnected = githubConnected || bitbucketConnected;
@@ -347,6 +413,46 @@ export function Dashboard() {
         {view === 'analytics' && (
           <div className="dashboard__analytics">
             <aside className="dashboard__sidebar">
+              <button
+                type="button"
+                className={`dashboard__sync-btn ${syncing ? 'dashboard__sync-btn--syncing' : ''}`}
+                onClick={handleSync}
+                disabled={syncing}
+              >
+                {syncing ? 'Syncing...' : '↻ Sync Repositories'}
+              </button>
+              {syncStatus && (
+                <div className="dashboard__sync-status">
+                  {syncStatus}
+                  {syncErrors.length > 0 && (
+                    <button
+                      type="button"
+                      className="dashboard__sync-errors-toggle"
+                      onClick={() => setSyncErrorsExpanded(true)}
+                    >
+                      Show details
+                    </button>
+                  )}
+                </div>
+              )}
+              {syncErrorsExpanded && syncErrors.length > 0 && (
+                <div className="dashboard__modal-overlay" onClick={() => setSyncErrorsExpanded(false)}>
+                  <div className="dashboard__modal" onClick={e => e.stopPropagation()}>
+                    <div className="dashboard__modal-header">
+                      <span>Sync Errors ({syncErrors.length})</span>
+                      <button type="button" className="dashboard__modal-close" onClick={() => setSyncErrorsExpanded(false)}>✕</button>
+                    </div>
+                    <div className="dashboard__sync-errors">
+                      {syncErrors.map((e, i) => (
+                        <div key={i} className="dashboard__sync-error-row">
+                          <span className="dashboard__sync-error-repo">{e.repoName}</span>
+                          <span className="dashboard__sync-error-msg">{e.error}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="dashboard__filter-section">
                 <h3>Date Range</h3>
                 <DateRangeFilter

@@ -13,12 +13,18 @@ import type {
   LocalRepositoryInfo,
   ScanResult,
   ScanProgress,
+  SyncProgress,
+  SyncResult,
 } from './index';
 
 export interface ElectronAPI {
   auth: {
     authenticate: (provider: SCMProvider) => Promise<AuthResult>;
-    authenticateWithToken: (provider: SCMProvider, token: string, username?: string) => Promise<AuthResult>;
+    authenticateWithToken: (
+      provider: SCMProvider,
+      token: string,
+      username?: string
+    ) => Promise<AuthResult>;
     isOAuthConfigured: (provider: SCMProvider) => Promise<boolean>;
     getStatus: (provider: SCMProvider) => Promise<AuthStatus>;
     disconnect: (provider: SCMProvider) => Promise<void>;
@@ -29,6 +35,7 @@ export interface ElectronAPI {
     import: (repos: Repository[]) => Promise<void>;
     getImported: () => Promise<ImportedRepository[]>;
     delete: (repoId: string) => Promise<void>;
+    sync: () => Promise<SyncResult>;
   };
 
   commits: {
@@ -53,6 +60,8 @@ export interface ElectronAPI {
 
   onImportProgress: (callback: (progress: ImportProgress) => void) => () => void;
   onScanProgress: (callback: (progress: ScanProgress) => void) => () => void;
+  onSyncProgress: (callback: (progress: SyncProgress) => void) => () => void;
+  onSyncTrigger: (callback: () => void) => () => void;
 }
 
 declare global {

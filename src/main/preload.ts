@@ -1,12 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 import type { ElectronAPI } from '../shared/types/electron-api';
-import type { LocalRepositoryInfo, ScanProgress } from '../shared/types';
+import type { LocalRepositoryInfo, ScanProgress, SyncProgress } from '../shared/types';
 
 const electronAPI: ElectronAPI = {
   auth: {
     authenticate: (provider) => ipcRenderer.invoke('auth:authenticate', provider),
-    authenticateWithToken: (provider, token, username) => ipcRenderer.invoke('auth:authenticateWithToken', provider, token, username),
+    authenticateWithToken: (provider, token, username) =>
+      ipcRenderer.invoke('auth:authenticateWithToken', provider, token, username),
     isOAuthConfigured: (provider) => ipcRenderer.invoke('auth:isOAuthConfigured', provider),
     getStatus: (provider) => ipcRenderer.invoke('auth:getStatus', provider),
     disconnect: (provider) => ipcRenderer.invoke('auth:disconnect', provider),
@@ -17,6 +18,7 @@ const electronAPI: ElectronAPI = {
     import: (repos) => ipcRenderer.invoke('repositories:import', repos),
     getImported: () => ipcRenderer.invoke('repositories:getImported'),
     delete: (repoId) => ipcRenderer.invoke('repositories:delete', repoId),
+    sync: () => ipcRenderer.invoke('repositories:sync'),
   },
 
   commits: {
@@ -33,7 +35,8 @@ const electronAPI: ElectronAPI = {
   localRepositories: {
     selectDirectory: () => ipcRenderer.invoke('localRepositories:selectDirectory'),
     scan: (directoryPath: string) => ipcRenderer.invoke('localRepositories:scan', directoryPath),
-    import: (repositories: LocalRepositoryInfo[]) => ipcRenderer.invoke('localRepositories:import', repositories),
+    import: (repositories: LocalRepositoryInfo[]) =>
+      ipcRenderer.invoke('localRepositories:import', repositories),
     refresh: (repoId: string) => ipcRenderer.invoke('localRepositories:refresh', repoId),
     remove: (repoId: string) => ipcRenderer.invoke('localRepositories:remove', repoId),
     checkGit: () => ipcRenderer.invoke('localRepositories:checkGit'),
@@ -53,6 +56,18 @@ const electronAPI: ElectronAPI = {
     const handler = (_event: IpcRendererEvent, progress: ScanProgress) => callback(progress);
     ipcRenderer.on('scan:progress', handler);
     return () => ipcRenderer.removeListener('scan:progress', handler);
+  },
+
+  onSyncProgress: (callback: (progress: SyncProgress) => void) => {
+    const handler = (_event: IpcRendererEvent, progress: SyncProgress) => callback(progress);
+    ipcRenderer.on('sync:progress', handler);
+    return () => ipcRenderer.removeListener('sync:progress', handler);
+  },
+
+  onSyncTrigger: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('sync:trigger', handler);
+    return () => ipcRenderer.removeListener('sync:trigger', handler);
   },
 };
 

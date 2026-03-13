@@ -192,3 +192,36 @@
   font-size: 0.8rem;
   color: var(--color-muted, #9ca3af);
 }
+
+/* Permissions info */
+.auth-status__permissions {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+.auth-status__permissions-label {
+  font-weight: 600;
+  color: var(--color-muted, #6b7280);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.auth-status__permissions-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary, #4b5563);
+  line-height: 1.5;
+}
+
+.auth-status__permissions-list code {
+  font-size: 0.75rem;
+  background: var(--bg-secondary, #f3f4f6);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-weight: 600;
+}

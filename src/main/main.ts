@@ -35,6 +35,10 @@ function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  mainWindow.on('focus', () => {
+    mainWindow?.webContents.send('sync:trigger');
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

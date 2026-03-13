@@ -233,6 +233,19 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
               Create {tokenLabel} ↗
             </a>
           </div>
+          <div className="auth-status__permissions">
+            <span className="auth-status__permissions-label">Required permissions:</span>
+            {provider === 'github' ? (
+              <ul className="auth-status__permissions-list">
+                <li><code>repo</code> — read access to repositories and commit history</li>
+              </ul>
+            ) : (
+              <ul className="auth-status__permissions-list">
+                <li><code>Repositories: Read</code> — list and read repository data</li>
+                <li><code>Account: Read</code> — verify account identity</li>
+              </ul>
+            )}
+          </div>
         </div>
       ) : (
         <div className="auth-status__oauth-section">

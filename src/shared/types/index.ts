@@ -30,18 +30,18 @@ export interface Repository {
   id: string;
   name: string;
   owner: string;
-  provider: RepositorySource;  // Changed from SCMProvider to support 'local'
+  provider: RepositorySource; // Changed from SCMProvider to support 'local'
   defaultBranch: string;
   url: string;
-  localPath?: string;          // Only set for local repositories
-  parentFolder?: string;       // Parent directory name for display context
+  localPath?: string; // Only set for local repositories
+  parentFolder?: string; // Parent directory name for display context
 }
 
 export interface ImportedRepository extends Repository {
   importedAt: Date;
   lastSyncAt: Date;
   commitCount: number;
-  isAvailable?: boolean;       // For local repos: false if path no longer exists
+  isAvailable?: boolean; // For local repos: false if path no longer exists
 }
 
 export interface RepositoryPage {
@@ -91,6 +91,22 @@ export interface ImportProgress {
   rateLimitRetrySeconds?: number;
 }
 
+// Sync progress types
+export interface SyncProgress {
+  repositoryId: string;
+  repositoryName: string;
+  status: 'syncing' | 'complete' | 'error' | 'skipped';
+  newCommits?: number;
+  error?: string;
+}
+
+export interface SyncResult {
+  totalRepos: number;
+  syncedRepos: number;
+  totalNewCommits: number;
+  errors: { repoName: string; error: string }[];
+}
+
 // User preferences types
 export type DateRangePreset = 'last7days' | 'last30days' | 'last90days' | 'lastYear' | 'custom';
 
@@ -138,16 +154,16 @@ export interface DateRange {
 
 // Information about a discovered local repository before import
 export interface LocalRepositoryInfo {
-  path: string;           // Absolute filesystem path
-  name: string;           // Directory name
-  defaultBranch: string;  // Detected default branch
-  parentFolder: string;   // Parent directory name for display context
+  path: string; // Absolute filesystem path
+  name: string; // Directory name
+  defaultBranch: string; // Detected default branch
+  parentFolder: string; // Parent directory name for display context
 }
 
 // Progress during directory scanning
 export interface ScanProgress {
-  currentPath: string;        // Currently scanning path
-  repositoriesFound: number;  // Count of repos found so far
+  currentPath: string; // Currently scanning path
+  repositoriesFound: number; // Count of repos found so far
   directoriesScanned: number; // Total directories processed
 }
 

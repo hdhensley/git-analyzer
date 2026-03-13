@@ -145,6 +145,7 @@ describe('Dashboard', () => {
           import: vi.fn(),
           getImported: vi.fn(),
           delete: vi.fn(),
+          sync: vi.fn(),
         },
         commits: {
           query: vi.fn(),
@@ -165,6 +166,8 @@ describe('Dashboard', () => {
         },
         onImportProgress: vi.fn(),
         onScanProgress: vi.fn(() => () => {}),
+        onSyncProgress: vi.fn(() => () => {}),
+        onSyncTrigger: vi.fn(() => () => {}),
       };
 
       (globalThis as any).window.electronAPI = mockAPI;
@@ -191,6 +194,7 @@ describe('Dashboard', () => {
           import: vi.fn(),
           getImported: vi.fn(),
           delete: vi.fn(),
+          sync: vi.fn(),
         },
         commits: {
           query: vi.fn(),
@@ -215,6 +219,8 @@ describe('Dashboard', () => {
         },
         onImportProgress: vi.fn(),
         onScanProgress: vi.fn(() => () => {}),
+        onSyncProgress: vi.fn(() => () => {}),
+        onSyncTrigger: vi.fn(() => () => {}),
       };
 
       (globalThis as any).window.electronAPI = mockAPI;
