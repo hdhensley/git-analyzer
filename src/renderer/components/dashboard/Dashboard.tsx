@@ -549,8 +549,8 @@ export function Dashboard() {
                       onError={handleWidgetError}
                     />
                     <ChartWidget
-                      key="commits-per-user"
-                      definition={CommitsPerUserWidgetDefinition}
+                      key="day-hour-heatmap"
+                      definition={DayHourHeatmapWidgetDefinition}
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
@@ -558,8 +558,8 @@ export function Dashboard() {
                       onError={handleWidgetError}
                     />
                     <ChartWidget
-                      key="day-hour-heatmap"
-                      definition={DayHourHeatmapWidgetDefinition}
+                      key="commits-per-user"
+                      definition={CommitsPerUserWidgetDefinition}
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
