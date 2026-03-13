@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { ChartWidgetProps } from './types';
 import type { Commit } from '../../../shared/types';
 import './ContributionGraphWidget.css';
@@ -93,31 +93,47 @@ function buildGraph(commits: Commit[], dateRange: { start: Date; end: Date } | n
 }
 
 interface AuthorInfo {
-  email: string;
   name: string;
+  emails: Set<string>;
   commitCount: number;
 }
 
-export function ContributionGraphWidget({ commits, dateRange }: ChartWidgetProps) {
-  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+export function ContributionGraphWidget({ commits, dateRange, authorGrouping }: ChartWidgetProps) {
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const groupByName = authorGrouping === 'name';
 
-  // Derive unique authors sorted by commit count descending
+  // Derive unique authors grouped by name or email, sorted by commit count descending
   const authors = useMemo<AuthorInfo[]>(() => {
     const map = new Map<string, AuthorInfo>();
     for (const c of commits) {
-      const existing = map.get(c.authorEmail);
+      const key = groupByName ? c.authorName : c.authorEmail;
+      const existing = map.get(key);
       if (existing) {
+        existing.emails.add(c.authorEmail);
         existing.commitCount++;
       } else {
-        map.set(c.authorEmail, { email: c.authorEmail, name: c.authorName, commitCount: 1 });
+        map.set(key, { name: c.authorName, emails: new Set([c.authorEmail]), commitCount: 1 });
       }
     }
     return Array.from(map.values()).sort((a, b) => b.commitCount - a.commitCount);
-  }, [commits]);
+  }, [commits, groupByName]);
 
-  // Filter commits by selected authors (empty = all)
+  // Build a set of all emails belonging to selected author keys
+  const selectedEmails = useMemo(() => {
+    if (selectedKeys.size === 0) return null;
+    const emails = new Set<string>();
+    for (const a of authors) {
+      const key = groupByName ? a.name : [...a.emails][0];
+      if (selectedKeys.has(key)) {
+        for (const e of a.emails) emails.add(e);
+      }
+    }
+    return emails;
+  }, [selectedKeys, authors, groupByName]);
+
+  // Filter commits by selected authors (null = all)
   const filteredCommits = useMemo(() => {
-    if (selectedEmails.size === 0) return commits;
+    if (!selectedEmails) return commits;
     return commits.filter(c => selectedEmails.has(c.authorEmail));
   }, [commits, selectedEmails]);
 
@@ -126,17 +142,22 @@ export function ContributionGraphWidget({ commits, dateRange }: ChartWidgetProps
     [filteredCommits, dateRange]
   );
 
-  const toggleAuthor = (email: string) => {
-    setSelectedEmails(prev => {
+  const toggleAuthor = (key: string) => {
+    setSelectedKeys(prev => {
       const next = new Set(prev);
-      if (next.has(email)) {
-        next.delete(email);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(email);
+        next.add(key);
       }
       return next;
     });
   };
+
+  // Reset selection when grouping changes
+  useEffect(() => {
+    setSelectedKeys(new Set());
+  }, [authorGrouping]);
 
   if (commits.length === 0) {
     return (
@@ -157,7 +178,7 @@ export function ContributionGraphWidget({ commits, dateRange }: ChartWidgetProps
         <div className="contribution-graph__summary">
           <span className="contribution-graph__total">{total.toLocaleString()}</span>
           <span className="contribution-graph__label">
-            contributions{selectedEmails.size > 0 ? ` by ${selectedEmails.size} contributor${selectedEmails.size !== 1 ? 's' : ''}` : ' in the selected period'}
+            contributions{selectedKeys.size > 0 ? ` by ${selectedKeys.size} contributor${selectedKeys.size !== 1 ? 's' : ''}` : ' in the selected period'}
           </span>
         </div>
 
@@ -165,22 +186,29 @@ export function ContributionGraphWidget({ commits, dateRange }: ChartWidgetProps
           <div className="contribution-graph__author-filter">
             <button
               type="button"
-              className={`contribution-graph__author-pill ${selectedEmails.size === 0 ? 'contribution-graph__author-pill--active' : ''}`}
-              onClick={() => setSelectedEmails(new Set())}
+              className={`contribution-graph__author-pill ${selectedKeys.size === 0 ? 'contribution-graph__author-pill--active' : ''}`}
+              onClick={() => setSelectedKeys(new Set())}
             >
               All
             </button>
-            {authors.map(a => (
-              <button
-                key={a.email}
-                type="button"
-                className={`contribution-graph__author-pill ${selectedEmails.has(a.email) ? 'contribution-graph__author-pill--active' : ''}`}
-                onClick={() => toggleAuthor(a.email)}
-                title={`${a.name} (${a.email}) — ${a.commitCount} commits`}
-              >
-                {a.name}
-              </button>
-            ))}
+            {authors.map(a => {
+              const key = groupByName ? a.name : [...a.emails][0];
+              const label = groupByName ? a.name : [...a.emails][0];
+              const tooltip = groupByName
+                ? `${a.name} (${[...a.emails].join(', ')}) — ${a.commitCount} commits`
+                : `${[...a.emails][0]} (${a.name}) — ${a.commitCount} commits`;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`contribution-graph__author-pill ${selectedKeys.has(key) ? 'contribution-graph__author-pill--active' : ''}`}
+                  onClick={() => toggleAuthor(key)}
+                  title={tooltip}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

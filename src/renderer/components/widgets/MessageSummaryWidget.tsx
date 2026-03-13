@@ -42,7 +42,7 @@ export function truncateMessage(message: string): CommitMessagePreview {
   };
 }
 
-export function summarizeMessagesByAuthor(commits: Commit[]): AuthorMessageSummary[] {
+export function summarizeMessagesByAuthor(commits: Commit[], groupByName = false): AuthorMessageSummary[] {
   const authorMap = new Map<string, {
     authorName: string;
     authorEmail: string;
@@ -50,11 +50,12 @@ export function summarizeMessagesByAuthor(commits: Commit[]): AuthorMessageSumma
   }>();
 
   for (const commit of commits) {
-    const existing = authorMap.get(commit.authorEmail);
+    const key = groupByName ? commit.authorName : commit.authorEmail;
+    const existing = authorMap.get(key);
     if (existing) {
       existing.commits.push(commit);
     } else {
-      authorMap.set(commit.authorEmail, {
+      authorMap.set(key, {
         authorName: commit.authorName,
         authorEmail: commit.authorEmail,
         commits: [commit],
@@ -117,8 +118,9 @@ export function summarizeMessagesByAuthor(commits: Commit[]): AuthorMessageSumma
     .sort((a, b) => b.commitCount - a.commitCount);
 }
 
-export function MessageSummaryWidget({ commits }: ChartWidgetProps) {
-  const summaries = useMemo(() => summarizeMessagesByAuthor(commits), [commits]);
+export function MessageSummaryWidget({ commits, authorGrouping }: ChartWidgetProps) {
+  const groupByName = authorGrouping === 'name';
+  const summaries = useMemo(() => summarizeMessagesByAuthor(commits, groupByName), [commits, groupByName]);
   const [expandedAuthors, setExpandedAuthors] = useState<Set<string>>(new Set());
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
@@ -165,28 +167,33 @@ export function MessageSummaryWidget({ commits }: ChartWidgetProps) {
 
   return (
     <div className="message-summary">
-      {summaries.map((summary) => (
-        <div key={summary.authorEmail} className="message-summary__author">
-          <button
-            type="button"
-            className="message-summary__author-header"
-            onClick={() => toggleAuthor(summary.authorEmail)}
-          >
-            <span className="message-summary__expand-icon">
-              {expandedAuthors.has(summary.authorEmail) ? '▼' : '▶'}
-            </span>
-            <div className="message-summary__author-info">
-              <span className="message-summary__author-name">{summary.authorName}</span>
-              <span className="message-summary__author-stats">
-                {summary.commitCount} commits • {formatDate(summary.dateRange.earliest)} - {formatDate(summary.dateRange.latest)}
+      {summaries.map((summary) => {
+        const authorKey = groupByName ? summary.authorName : summary.authorEmail;
+        const displayName = groupByName ? summary.authorName : summary.authorEmail;
+        const subtitle = groupByName ? summary.authorEmail : summary.authorName;
+        return (
+          <div key={authorKey} className="message-summary__author">
+            <button
+              type="button"
+              className="message-summary__author-header"
+              onClick={() => toggleAuthor(authorKey)}
+            >
+              <span className="message-summary__expand-icon">
+                {expandedAuthors.has(authorKey) ? '▼' : '▶'}
               </span>
-            </div>
-          </button>
+              <div className="message-summary__author-info">
+                <span className="message-summary__author-name">{displayName}</span>
+                <span className="message-summary__author-email">{subtitle}</span>
+                <span className="message-summary__author-stats">
+                  {summary.commitCount} commits • {formatDate(summary.dateRange.earliest)} - {formatDate(summary.dateRange.latest)}
+                </span>
+              </div>
+            </button>
 
-          {expandedAuthors.has(summary.authorEmail) && (
-            <div className="message-summary__repositories">
-              {summary.repositories.map((repo) => {
-                const repoKey = `${summary.authorEmail}-${repo.repositoryId}`;
+            {expandedAuthors.has(authorKey) && (
+              <div className="message-summary__repositories">
+                {summary.repositories.map((repo) => {
+                  const repoKey = `${authorKey}-${repo.repositoryId}`;
                 return (
                   <div key={repoKey} className="message-summary__repository">
                     <button
@@ -238,7 +245,8 @@ export function MessageSummaryWidget({ commits }: ChartWidgetProps) {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -3,10 +3,13 @@ import type { Commit, DateRange } from '../../../shared/types';
 
 export type GitLogField = 'hash' | 'authorName' | 'authorEmail' | 'date' | 'message';
 
+export type AuthorGrouping = 'name' | 'email';
+
 export interface ChartWidgetProps {
   commits: Commit[];
   dateRange: DateRange | null;
   selectedRepoIds: string[];
+  authorGrouping: AuthorGrouping;
   onError: (error: Error) => void;
 }
 

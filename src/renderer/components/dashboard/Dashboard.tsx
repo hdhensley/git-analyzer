@@ -5,6 +5,7 @@ import { RepositoryList, ImportProgress, LocalRepositoryBrowser } from '../repos
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
 import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition } from '../widgets';
 import type { Repository, Commit, DateRange, DateRangePreset, UserPreferences } from '../../../shared/types';
+import type { AuthorGrouping } from '../widgets';
 import './Dashboard.css';
 
 // Register built-in widgets
@@ -39,6 +40,7 @@ export function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset | undefined>();
   const [loading, setLoading] = useState(false);
+  const [authorGrouping, setAuthorGrouping] = useState<AuthorGrouping>('name');
 
   // Load preferences on mount (only when api is available)
   useEffect(() => {
@@ -377,6 +379,24 @@ export function Dashboard() {
                 >
                   By Repository
                 </button>
+
+                <div className="dashboard__grouping-toggle">
+                  <span className="dashboard__grouping-label">Group by:</span>
+                  <button
+                    type="button"
+                    className={`dashboard__grouping-btn ${authorGrouping === 'name' ? 'dashboard__grouping-btn--active' : ''}`}
+                    onClick={() => setAuthorGrouping('name')}
+                  >
+                    Name
+                  </button>
+                  <button
+                    type="button"
+                    className={`dashboard__grouping-btn ${authorGrouping === 'email' ? 'dashboard__grouping-btn--active' : ''}`}
+                    onClick={() => setAuthorGrouping('email')}
+                  >
+                    Email
+                  </button>
+                </div>
               </div>
 
               <div className="dashboard__widgets">
@@ -396,6 +416,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
                     <ChartWidget
@@ -404,6 +425,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
                   </>
@@ -416,6 +438,7 @@ export function Dashboard() {
                     commits={commits}
                     dateRange={dateRange}
                     selectedRepoIds={selectedRepoIds}
+                    authorGrouping={authorGrouping}
                     onError={handleWidgetError}
                   />
                 )}
@@ -427,6 +450,7 @@ export function Dashboard() {
                     commits={commits}
                     dateRange={dateRange}
                     selectedRepoIds={selectedRepoIds}
+                    authorGrouping={authorGrouping}
                     onError={handleWidgetError}
                   />
                 )}

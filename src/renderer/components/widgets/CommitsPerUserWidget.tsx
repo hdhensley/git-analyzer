@@ -3,15 +3,19 @@ import type { ChartWidgetProps } from './types';
 import type { AuthorCommitCount } from '../../../shared/types';
 import './CommitsPerUserWidget.css';
 
-export function aggregateCommitsByAuthor(commits: { authorName: string; authorEmail: string }[]): AuthorCommitCount[] {
+export function aggregateCommitsByAuthor(
+  commits: { authorName: string; authorEmail: string }[],
+  groupByName = false,
+): AuthorCommitCount[] {
   const authorMap = new Map<string, AuthorCommitCount>();
 
   for (const commit of commits) {
-    const existing = authorMap.get(commit.authorEmail);
+    const key = groupByName ? commit.authorName : commit.authorEmail;
+    const existing = authorMap.get(key);
     if (existing) {
       existing.commitCount++;
     } else {
-      authorMap.set(commit.authorEmail, {
+      authorMap.set(key, {
         authorName: commit.authorName,
         authorEmail: commit.authorEmail,
         commitCount: 1,
@@ -22,8 +26,9 @@ export function aggregateCommitsByAuthor(commits: { authorName: string; authorEm
   return Array.from(authorMap.values()).sort((a, b) => b.commitCount - a.commitCount);
 }
 
-export function CommitsPerUserWidget({ commits }: ChartWidgetProps) {
-  const authorCounts = useMemo(() => aggregateCommitsByAuthor(commits), [commits]);
+export function CommitsPerUserWidget({ commits, authorGrouping }: ChartWidgetProps) {
+  const groupByName = authorGrouping === 'name';
+  const authorCounts = useMemo(() => aggregateCommitsByAuthor(commits, groupByName), [commits, groupByName]);
   const totalCommits = commits.length;
   const maxCount = authorCounts[0]?.commitCount ?? 0;
 
@@ -43,21 +48,26 @@ export function CommitsPerUserWidget({ commits }: ChartWidgetProps) {
       </div>
 
       <div className="commits-per-user__chart">
-        {authorCounts.map((author) => (
-          <div key={author.authorEmail} className="commits-per-user__bar-row">
-            <div className="commits-per-user__author">
-              <span className="commits-per-user__author-name">{author.authorName}</span>
-              <span className="commits-per-user__author-email">{author.authorEmail}</span>
+        {authorCounts.map((author) => {
+          const key = groupByName ? author.authorName : author.authorEmail;
+          const displayName = groupByName ? author.authorName : author.authorEmail;
+          const subtitle = groupByName ? author.authorEmail : author.authorName;
+          return (
+            <div key={key} className="commits-per-user__bar-row">
+              <div className="commits-per-user__author">
+                <span className="commits-per-user__author-name">{displayName}</span>
+                <span className="commits-per-user__author-email">{subtitle}</span>
+              </div>
+              <div className="commits-per-user__bar-container">
+                <div 
+                  className="commits-per-user__bar"
+                  style={{ width: `${(author.commitCount / maxCount) * 100}%` }}
+                />
+                <span className="commits-per-user__count">{author.commitCount}</span>
+              </div>
             </div>
-            <div className="commits-per-user__bar-container">
-              <div 
-                className="commits-per-user__bar"
-                style={{ width: `${(author.commitCount / maxCount) * 100}%` }}
-              />
-              <span className="commits-per-user__count">{author.commitCount}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -70,7 +70,7 @@
     "react-dom": "^18.2.0"
   },
   "build": {
-    "appId": "com.gitanalytics.dashboard",
+    "appId": "com.overzealouspelican.gitanalytics-dashboard",
     "productName": "Git Analytics Dashboard",
     "directories": {
       "output": "release"
