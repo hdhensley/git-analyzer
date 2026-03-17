@@ -29,7 +29,7 @@ export class AuthService {
 
   async authenticate(provider: SCMProvider): Promise<AuthResult> {
     const config = OAUTH_CONFIG[provider];
-    
+
     if (!config.clientId) {
       return {
         success: false,
@@ -68,33 +68,32 @@ export class AuthService {
     return !!(config.clientId && config.clientSecret);
   }
 
-
-  async authenticateWithToken(provider: SCMProvider, token: string, username?: string): Promise<AuthResult> {
+  async authenticateWithToken(
+    provider: SCMProvider,
+    token: string,
+    username?: string
+  ): Promise<AuthResult> {
     try {
-      // For Bitbucket app passwords, we need the username for Basic auth
-      // For GitHub PATs, Bearer auth works directly
+      // Both GitHub PATs and Bitbucket API tokens use Bearer auth
       let resolvedUsername: string;
 
       if (provider === 'bitbucket') {
-        if (!username) {
-          return {
-            success: false,
-            provider,
-            error: 'Bitbucket app passwords require a username.',
-          };
-        }
-        // Validate the token by making a test API call with Basic auth
+        // Validate the token by making a test API call with Bearer auth
         const response = await fetch('https://api.bitbucket.org/2.0/user', {
           headers: {
-            Authorization: 'Basic ' + Buffer.from(`${username}:${token}`).toString('base64'),
+            Authorization: `Bearer ${token}`,
             Accept: 'application/json',
           },
         });
         if (!response.ok) {
-          return { success: false, provider, error: 'Invalid username or app password.' };
+          return { success: false, provider, error: 'Invalid API token.' };
         }
-        const data = await response.json() as { display_name?: string; username?: string; nickname?: string };
-        resolvedUsername = data.nickname || data.username || username;
+        const data = (await response.json()) as {
+          display_name?: string;
+          username?: string;
+          nickname?: string;
+        };
+        resolvedUsername = data.nickname || data.username || 'unknown';
       } else {
         // GitHub: validate PAT with Bearer auth
         const response = await fetch('https://api.github.com/user', {
@@ -106,16 +105,13 @@ export class AuthService {
         if (!response.ok) {
           return { success: false, provider, error: 'Invalid personal access token.' };
         }
-        const data = await response.json() as { login: string };
+        const data = (await response.json()) as { login: string };
         resolvedUsername = data.login;
       }
 
       const credentials: Credentials = {
         accessToken: token,
         username: resolvedUsername,
-        // For Bitbucket app passwords, store the username in refreshToken field
-        // so we can reconstruct Basic auth later
-        refreshToken: provider === 'bitbucket' ? `apppassword:${username}` : undefined,
       };
 
       await this.secureStorage.setCredentials(provider, credentials);
@@ -128,11 +124,10 @@ export class AuthService {
     }
   }
 
-
   private async openOAuthWindow(provider: SCMProvider): Promise<string | null> {
     const config = OAUTH_CONFIG[provider];
     const state = Math.random().toString(36).substring(2);
-    
+
     const authUrl = new URL(config.authUrl);
     authUrl.searchParams.set('client_id', config.clientId);
     authUrl.searchParams.set('redirect_uri', config.redirectUri);
@@ -166,7 +161,6 @@ export class AuthService {
       authWindow.loadURL(authUrl.toString());
     });
   }
-
 
   private handleOAuthCallback(
     url: string,
@@ -218,7 +212,8 @@ export class AuthService {
 
     if (provider === 'bitbucket') {
       // Bitbucket requires Basic Auth with client_id:client_secret
-      headers['Authorization'] = 'Basic ' + Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+      headers['Authorization'] =
+        'Basic ' + Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
     } else {
       // GitHub accepts credentials in the body
       params.set('client_id', config.clientId);
@@ -235,7 +230,7 @@ export class AuthService {
       throw new Error(`Token exchange failed: ${response.statusText}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       access_token: string;
       refresh_token?: string;
       expires_in?: number;
@@ -255,9 +250,8 @@ export class AuthService {
   }
 
   private async fetchUsername(provider: SCMProvider, accessToken: string): Promise<string> {
-    const url = provider === 'github' 
-      ? 'https://api.github.com/user'
-      : 'https://api.bitbucket.org/2.0/user';
+    const url =
+      provider === 'github' ? 'https://api.github.com/user' : 'https://api.bitbucket.org/2.0/user';
 
     const response = await fetch(url, {
       headers: {
@@ -270,13 +264,13 @@ export class AuthService {
       throw new Error(`Failed to fetch user info: ${response.statusText}`);
     }
 
-    const data = await response.json() as { login?: string; username?: string };
+    const data = (await response.json()) as { login?: string; username?: string };
     return provider === 'github' ? data.login! : data.username!;
   }
 
   async getStatus(provider: SCMProvider): Promise<AuthStatus> {
     const credentials = await this.secureStorage.getCredentials(provider);
-    
+
     if (!credentials) {
       return { connected: false, provider };
     }
@@ -295,7 +289,7 @@ export class AuthService {
 
   async validateToken(provider: SCMProvider): Promise<boolean> {
     const credentials = await this.secureStorage.getCredentials(provider);
-    
+
     if (!credentials) {
       return false;
     }
@@ -338,7 +332,8 @@ export class AuthService {
     };
 
     if (provider === 'bitbucket') {
-      headers['Authorization'] = 'Basic ' + Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+      headers['Authorization'] =
+        'Basic ' + Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
     } else {
       params.set('client_id', config.clientId);
       params.set('client_secret', config.clientSecret);
@@ -354,7 +349,7 @@ export class AuthService {
       throw new Error('Token refresh failed');
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       access_token: string;
       refresh_token?: string;
       expires_in?: number;
@@ -384,15 +379,8 @@ export class AuthService {
     const credentials = await this.secureStorage.getCredentials(provider);
     if (!credentials) return null;
 
-    // Check if this is a Bitbucket app password (stored with apppassword: prefix in refreshToken)
-    if (provider === 'bitbucket' && credentials.refreshToken?.startsWith('apppassword:')) {
-      const username = credentials.refreshToken.replace('apppassword:', '');
-      return 'Basic ' + Buffer.from(`${username}:${credentials.accessToken}`).toString('base64');
-    }
-
     return `Bearer ${credentials.accessToken}`;
   }
-
 }
 
 // Singleton instance

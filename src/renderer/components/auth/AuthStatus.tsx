@@ -17,7 +17,6 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('token');
   const [tokenInput, setTokenInput] = useState('');
-  const [usernameInput, setUsernameInput] = useState('');
   const [oauthAvailable, setOauthAvailable] = useState(false);
 
   const fetchStatus = async () => {
@@ -63,11 +62,7 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   const handleTokenSubmit = async () => {
     if (!api) return;
     if (!tokenInput.trim()) {
-      setError(provider === 'github' ? 'Please enter a personal access token.' : 'Please enter an app password.');
-      return;
-    }
-    if (provider === 'bitbucket' && !usernameInput.trim()) {
-      setError('Bitbucket app passwords require your username.');
+      setError(provider === 'github' ? 'Please enter a personal access token.' : 'Please enter an API token.');
       return;
     }
     try {
@@ -75,12 +70,10 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
       setError(null);
       const result = await api.auth.authenticateWithToken(
         provider,
-        tokenInput.trim(),
-        provider === 'bitbucket' ? usernameInput.trim() : undefined
+        tokenInput.trim()
       );
       if (result.success) {
         setTokenInput('');
-        setUsernameInput('');
         await fetchStatus();
       } else {
         setError(result.error || 'Authentication failed');
@@ -108,10 +101,10 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   };
 
   const providerName = provider === 'github' ? 'GitHub' : 'Bitbucket';
-  const tokenLabel = provider === 'github' ? 'Personal Access Token' : 'App Password';
+  const tokenLabel = provider === 'github' ? 'Personal Access Token' : 'API Token';
   const tokenHelpUrl = provider === 'github'
     ? 'https://github.com/settings/tokens'
-    : 'https://bitbucket.org/account/settings/app-passwords/';
+    : 'https://bitbucket.org/account/settings/app-passwords/new';
 
   if (!api) {
     return (
@@ -193,17 +186,6 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
 
       {authMode === 'token' ? (
         <div className="auth-status__token-form">
-          {provider === 'bitbucket' && (
-            <input
-              type="text"
-              className="auth-status__input"
-              placeholder="Bitbucket username"
-              value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
-              disabled={loading}
-              aria-label="Bitbucket username"
-            />
-          )}
           <input
             type="password"
             className="auth-status__input"
