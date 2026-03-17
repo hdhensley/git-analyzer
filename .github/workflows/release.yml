@@ -59,10 +59,86 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Import signing certificate
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+          security set-keychain-settings -lut 21600 build.keychain-db
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+
+          security import certificate.p12 -k build.keychain-db -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain-db
+
+          security list-keychains -d user -s build.keychain-db $(security list-keychains -d user | tr -d '"')
+
+          echo "=== Signing identities ==="
+          security find-identity -v -p codesigning
+
+          rm certificate.p12
+
       - name: Package
         run: npm run ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing - electron-builder reads these automatically
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE_PWD || '' }}
+
+      - name: Notarize macOS build
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          # Find the DMG file
+          DMG_FILE=$(find release -name "*.dmg" | head -1)
+          if [ -z "$DMG_FILE" ]; then
+            echo "No DMG file found, skipping notarization"
+            exit 1
+          fi
+          echo "Notarizing: $DMG_FILE"
+
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_FILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait 2>&1) || true
+
+          echo "$SUBMIT_OUTPUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -m1 "id:" | awk '{print $2}')
+
+          if echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+            echo "Notarization succeeded!"
+          else
+            echo "Notarization failed. Fetching detailed log..."
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_PASSWORD" \
+                notarization-log.json
+              echo "=== Notarization Log ==="
+              cat notarization-log.json
+            fi
+            exit 1
+          fi
+
+          # Staple the ticket to the DMG
+          xcrun stapler staple "$DMG_FILE"
+
+          # Also staple the zip if it exists
+          ZIP_FILE=$(find release -name "*.zip" | head -1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Note: .zip files cannot be stapled, but they will pass Gatekeeper via online check"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
