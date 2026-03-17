@@ -83,12 +83,18 @@ jobs:
           rm certificate.p12
 
       - name: Package
+        if: matrix.os != 'macos-latest'
         run: npm run ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing - electron-builder reads these automatically
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE_PWD || '' }}
+
+      - name: Package macOS (with signing)
+        if: matrix.os == 'macos-latest'
+        run: npm run package:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
       - name: Notarize macOS build
         if: matrix.os == 'macos-latest'
