@@ -23,6 +23,9 @@ const OAUTH_CONFIG = {
   },
 };
 
+const BITBUCKET_BASIC_TOKEN_PREFIX = 'bb_basic:';
+const BITBUCKET_BASIC_USER_TOKEN_PREFIX = 'bb_basic_user:';
+
 export class AuthService {
   private secureStorage = getSecureStorage();
   private db = getDatabase();
@@ -75,30 +78,53 @@ export class AuthService {
   ): Promise<AuthResult> {
     try {
       // Both GitHub PATs and Bitbucket API tokens use Bearer auth
+      const normalizedToken = token.replace(/^Bearer\s+/i, '').trim();
       let resolvedUsername: string;
 
       if (provider === 'bitbucket') {
-        // Validate the token by making a test API call with Bearer auth
-        const response = await fetch('https://api.bitbucket.org/2.0/user', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          },
-        });
-        if (!response.ok) {
-          return { success: false, provider, error: 'Invalid API token.' };
+        const parsedBitbucketInput = this.parseBitbucketTokenInput(normalizedToken);
+
+        const {
+          valid,
+          resolvedUsername: bitbucketUsername,
+          useBasicAuth,
+          basicAuthUsername,
+          errorMessage,
+        } = await this.validateBitbucketToken(
+          parsedBitbucketInput.token,
+          username || parsedBitbucketInput.username
+        );
+
+        if (!valid) {
+          return {
+            success: false,
+            provider,
+            error:
+              errorMessage ||
+              'Invalid API token. If this is a scoped API token, ensure it has Bitbucket scopes and not Atlassian-only scopes.',
+          };
         }
-        const data = (await response.json()) as {
-          display_name?: string;
-          username?: string;
-          nickname?: string;
+
+        resolvedUsername = bitbucketUsername;
+
+        const credentials: Credentials = {
+          accessToken: useBasicAuth
+            ? basicAuthUsername
+              ? `${BITBUCKET_BASIC_USER_TOKEN_PREFIX}${Buffer.from(`${basicAuthUsername}:${parsedBitbucketInput.token}`).toString('base64')}`
+              : `${BITBUCKET_BASIC_TOKEN_PREFIX}${parsedBitbucketInput.token}`
+            : parsedBitbucketInput.token,
+          username: resolvedUsername,
         };
-        resolvedUsername = data.nickname || data.username || 'unknown';
+
+        await this.secureStorage.setCredentials(provider, credentials);
+        this.db.saveProvider(provider, resolvedUsername);
+
+        return { success: true, provider, username: resolvedUsername };
       } else {
         // GitHub: validate PAT with Bearer auth
         const response = await fetch('https://api.github.com/user', {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${normalizedToken}`,
             Accept: 'application/vnd.github.v3+json',
           },
         });
@@ -107,17 +133,17 @@ export class AuthService {
         }
         const data = (await response.json()) as { login: string };
         resolvedUsername = data.login;
+
+        const credentials: Credentials = {
+          accessToken: normalizedToken,
+          username: resolvedUsername,
+        };
+
+        await this.secureStorage.setCredentials(provider, credentials);
+        this.db.saveProvider(provider, resolvedUsername);
+
+        return { success: true, provider, username: resolvedUsername };
       }
-
-      const credentials: Credentials = {
-        accessToken: token,
-        username: resolvedUsername,
-      };
-
-      await this.secureStorage.setCredentials(provider, credentials);
-      this.db.saveProvider(provider, resolvedUsername);
-
-      return { success: true, provider, username: resolvedUsername };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       return { success: false, provider, error: message };
@@ -310,12 +336,163 @@ export class AuthService {
 
     // Validate by making a test API call
     try {
-      await this.fetchUsername(provider, credentials.accessToken);
+      if (provider === 'bitbucket') {
+        const { valid } = await this.validateBitbucketToken(
+          credentials.accessToken,
+          credentials.username
+        );
+        if (!valid) {
+          return false;
+        }
+      } else {
+        await this.fetchUsername(provider, credentials.accessToken);
+      }
       this.db.updateProviderValidation(provider);
       return true;
     } catch {
       return false;
     }
+  }
+
+  private async validateBitbucketToken(
+    token: string,
+    fallbackUsername?: string
+  ): Promise<{
+    valid: boolean;
+    resolvedUsername: string;
+    useBasicAuth: boolean;
+    basicAuthUsername?: string;
+    errorMessage?: string;
+  }> {
+    const parsedStoredToken = this.parseStoredBitbucketToken(token);
+    const rawToken = parsedStoredToken.token;
+    const providedBasicUsername = fallbackUsername?.trim() || parsedStoredToken.basicAuthUsername;
+
+    const authCandidates: Array<{
+      useBasicAuth: boolean;
+      authHeader: string;
+      basicAuthUsername?: string;
+      label: string;
+    }> = [
+      { useBasicAuth: false, authHeader: `Bearer ${rawToken}`, label: 'bearer' },
+      {
+        useBasicAuth: true,
+        authHeader: `Basic ${Buffer.from(`x-token-auth:${rawToken}`).toString('base64')}`,
+        label: 'basic x-token-auth',
+      },
+    ];
+
+    if (providedBasicUsername) {
+      authCandidates.unshift({
+        useBasicAuth: true,
+        authHeader: `Basic ${Buffer.from(`${providedBasicUsername}:${rawToken}`).toString('base64')}`,
+        basicAuthUsername: providedBasicUsername,
+        label: 'basic email',
+      });
+    }
+
+    let lastFailure: string | undefined;
+
+    for (const candidate of authCandidates) {
+      const userResponse = await fetch('https://api.bitbucket.org/2.0/user', {
+        headers: {
+          Authorization: candidate.authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      if (userResponse.ok) {
+        const data = (await userResponse.json()) as {
+          display_name?: string;
+          username?: string;
+          nickname?: string;
+        };
+
+        return {
+          valid: true,
+          resolvedUsername:
+            data.nickname ||
+            data.username ||
+            data.display_name ||
+            fallbackUsername?.trim() ||
+            'bitbucket-token',
+          useBasicAuth: candidate.useBasicAuth,
+          basicAuthUsername: candidate.basicAuthUsername,
+        };
+      }
+
+      // Some scoped tokens can fail on /user; verify via repository listing instead.
+      const repoResponse = await fetch(
+        'https://api.bitbucket.org/2.0/repositories?role=member&pagelen=1',
+        {
+          headers: {
+            Authorization: candidate.authHeader,
+            Accept: 'application/json',
+          },
+        }
+      );
+
+      if (repoResponse.ok) {
+        return {
+          valid: true,
+          resolvedUsername: fallbackUsername?.trim() || 'bitbucket-token',
+          useBasicAuth: candidate.useBasicAuth,
+          basicAuthUsername: candidate.basicAuthUsername,
+        };
+      }
+
+      lastFailure = `Bitbucket rejected token (${candidate.label} auth): /user ${userResponse.status}, /repositories ${repoResponse.status}.`;
+    }
+
+    return {
+      valid: false,
+      resolvedUsername: fallbackUsername?.trim() || 'bitbucket-token',
+      useBasicAuth: false,
+      errorMessage: lastFailure,
+    };
+  }
+
+  private parseBitbucketTokenInput(input: string): { token: string; username?: string } {
+    const value = input.trim();
+    const firstColonIndex = value.indexOf(':');
+
+    if (
+      firstColonIndex > 0 &&
+      firstColonIndex < value.length - 1 &&
+      value.includes('@')
+    ) {
+      const possibleUsername = value.slice(0, firstColonIndex).trim();
+      const possibleToken = value.slice(firstColonIndex + 1).trim();
+      if (possibleUsername && possibleToken) {
+        return { token: possibleToken, username: possibleUsername };
+      }
+    }
+
+    return { token: value };
+  }
+
+  private parseStoredBitbucketToken(input: string): { token: string; basicAuthUsername?: string } {
+    if (input.startsWith(BITBUCKET_BASIC_USER_TOKEN_PREFIX)) {
+      const encoded = input.slice(BITBUCKET_BASIC_USER_TOKEN_PREFIX.length);
+      try {
+        const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+        const separatorIndex = decoded.indexOf(':');
+        if (separatorIndex > 0 && separatorIndex < decoded.length - 1) {
+          return {
+            basicAuthUsername: decoded.slice(0, separatorIndex),
+            token: decoded.slice(separatorIndex + 1),
+          };
+        }
+      } catch {
+        return { token: input };
+      }
+    }
+
+    if (input.startsWith(BITBUCKET_BASIC_TOKEN_PREFIX)) {
+      return { token: input.slice(BITBUCKET_BASIC_TOKEN_PREFIX.length) };
+    }
+
+    return { token: input };
   }
 
   private async refreshToken(provider: SCMProvider, refreshToken: string): Promise<void> {
@@ -378,6 +555,18 @@ export class AuthService {
   async getAuthHeader(provider: SCMProvider): Promise<string | null> {
     const credentials = await this.secureStorage.getCredentials(provider);
     if (!credentials) return null;
+
+    if (provider === 'bitbucket') {
+      if (credentials.accessToken.startsWith(BITBUCKET_BASIC_USER_TOKEN_PREFIX)) {
+        const encoded = credentials.accessToken.slice(BITBUCKET_BASIC_USER_TOKEN_PREFIX.length);
+        return `Basic ${encoded}`;
+      }
+
+      if (credentials.accessToken.startsWith(BITBUCKET_BASIC_TOKEN_PREFIX)) {
+        const rawToken = credentials.accessToken.slice(BITBUCKET_BASIC_TOKEN_PREFIX.length);
+        return `Basic ${Buffer.from(`x-token-auth:${rawToken}`).toString('base64')}`;
+      }
+    }
 
     return `Bearer ${credentials.accessToken}`;
   }

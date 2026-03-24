@@ -143,7 +143,10 @@ export function registerIpcHandlers(): void {
         } else {
           // Cloud repo (github/bitbucket)
           try {
-            const fetchResult = await gitService.fetchNewCommits(repo, repo.lastSyncAt);
+            const existingCommitCount = db.getCommitCount(repo.id);
+            const fetchResult = existingCommitCount === 0
+              ? await gitService.fetchGitLog(repo)
+              : await gitService.fetchNewCommits(repo, repo.lastSyncAt);
             if (fetchResult.commits.length > 0) {
               db.saveCommits(repo.id, fetchResult.commits);
               newCommits = fetchResult.commits.length;

@@ -17,6 +17,7 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('token');
   const [tokenInput, setTokenInput] = useState('');
+  const [bitbucketEmail, setBitbucketEmail] = useState('');
   const [oauthAvailable, setOauthAvailable] = useState(false);
 
   const fetchStatus = async () => {
@@ -65,15 +66,21 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
       setError(provider === 'github' ? 'Please enter a personal access token.' : 'Please enter an API token.');
       return;
     }
+    if (provider === 'bitbucket' && !bitbucketEmail.trim()) {
+      setError('Please enter your Atlassian email for Bitbucket API tokens.');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       const result = await api.auth.authenticateWithToken(
         provider,
-        tokenInput.trim()
+        tokenInput.trim(),
+        provider === 'bitbucket' ? bitbucketEmail.trim() : undefined
       );
       if (result.success) {
         setTokenInput('');
+        setBitbucketEmail('');
         await fetchStatus();
       } else {
         setError(result.error || 'Authentication failed');
@@ -186,6 +193,18 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
 
       {authMode === 'token' ? (
         <div className="auth-status__token-form">
+          {provider === 'bitbucket' && (
+            <input
+              type="email"
+              className="auth-status__input"
+              placeholder="Atlassian email"
+              value={bitbucketEmail}
+              onChange={(e) => setBitbucketEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleTokenSubmit()}
+              disabled={loading}
+              aria-label="Atlassian email"
+            />
+          )}
           <input
             type="password"
             className="auth-status__input"
@@ -223,8 +242,9 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
               </ul>
             ) : (
               <ul className="auth-status__permissions-list">
-                <li><code>Repositories: Read</code> — list and read repository data</li>
-                <li><code>Account: Read</code> — verify account identity</li>
+                <li><code>read:repository:bitbucket</code> — list and read repository data</li>
+                <li><code>read:account</code> — verify account identity</li>
+                <li>Use Atlassian email + API token (Basic auth)</li>
               </ul>
             )}
           </div>
