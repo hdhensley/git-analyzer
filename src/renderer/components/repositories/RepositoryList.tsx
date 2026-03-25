@@ -31,6 +31,7 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
 
   const fetchRepositories = async (pageNum: number, append = false) => {
     // Guard: only call API methods when api is available
@@ -65,17 +66,46 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
     if (api) {
       fetchRepositories(1);
       setSelected(new Set());
+      setSelectedProjects(new Set());
     }
   }, [provider, api]);
 
+  const availableProjects = useMemo(() => {
+    const projects = new Set<string>();
+    for (const repo of repositories) {
+      if (repo.parentFolder) projects.add(repo.parentFolder);
+    }
+    return Array.from(projects).sort();
+  }, [repositories]);
+
   const filteredRepositories = useMemo(() => {
-    if (!searchTerm.trim()) return repositories;
-    const term = searchTerm.toLowerCase();
-    return repositories.filter(repo => 
-      repo.name.toLowerCase().includes(term) ||
-      repo.owner.toLowerCase().includes(term)
-    );
-  }, [repositories, searchTerm]);
+    let result = repositories;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(repo =>
+        repo.name.toLowerCase().includes(term) ||
+        repo.owner.toLowerCase().includes(term)
+      );
+    }
+    if (selectedProjects.size > 0) {
+      result = result.filter(repo =>
+        repo.parentFolder != null && selectedProjects.has(repo.parentFolder)
+      );
+    }
+    return result;
+  }, [repositories, searchTerm, selectedProjects]);
+
+  const handleToggleProject = (project: string) => {
+    setSelectedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(project)) {
+        next.delete(project);
+      } else {
+        next.add(project);
+      }
+      return next;
+    });
+  };
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
@@ -104,6 +134,8 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
     setSelected(new Set());
     onSelectionChange?.([]);
   };
+
+  const selectedInView = filteredRepositories.filter(r => selected.has(r.id)).length;
 
   const providerName = provider === 'github' ? 'GitHub' : 'Bitbucket';
   const providerIcon = getProviderIcon(provider);
@@ -135,6 +167,28 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
         </div>
       </div>
 
+      {availableProjects.length > 1 && (
+        <div className="repository-list__project-filter">
+          <button
+            type="button"
+            className={`repository-list__project-btn${selectedProjects.size === 0 ? ' repository-list__project-btn--active' : ''}`}
+            onClick={() => setSelectedProjects(new Set())}
+          >
+            All Projects
+          </button>
+          {availableProjects.map(project => (
+            <button
+              key={project}
+              type="button"
+              className={`repository-list__project-btn${selectedProjects.has(project) ? ' repository-list__project-btn--active' : ''}`}
+              onClick={() => handleToggleProject(project)}
+            >
+              {project}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && (
         <div className="repository-list__error">
           {error}
@@ -147,7 +201,7 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
           <button type="button" onClick={handleSelectAll}>Select All</button>
           <button type="button" onClick={handleSelectNone}>Select None</button>
           <span className="repository-list__count">
-            {selected.size} of {filteredRepositories.length} selected
+            {selectedInView} of {filteredRepositories.length} selected
           </span>
         </div>
       )}

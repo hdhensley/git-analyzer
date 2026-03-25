@@ -123,6 +123,40 @@
   background: var(--bg-secondary, #f3f4f6);
 }
 
+.repository-list__project-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 6px;
+}
+
+.repository-list__project-btn {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.repository-list__project-btn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+}
+
+.repository-list__project-btn--active {
+  background: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary, #3b82f6);
+  color: white;
+}
+
+.repository-list__project-btn--active:hover {
+  background: var(--color-primary-hover, #2563eb);
+  border-color: var(--color-primary-hover, #2563eb);
+}
+
 .repository-list__error {
   display: flex;
   align-items: center;
