@@ -42,6 +42,10 @@ const electronAPI: ElectronAPI = {
     checkGit: () => ipcRenderer.invoke('localRepositories:checkGit'),
   },
 
+  updates: {
+    check: () => ipcRenderer.invoke('updates:check'),
+  },
+
   onImportProgress: (callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, progress: unknown) => {
       callback(progress as Parameters<typeof callback>[0]);

@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
-import { closeDatabase } from './services';
+import { closeDatabase, getUpdateService } from './services';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -48,9 +48,56 @@ function createWindow(): void {
   });
 }
 
+function buildAppMenu(): void {
+  const template: MenuItemConstructorOptions[] = [];
+
+  if (process.platform === 'darwin') {
+    const macAppMenu: MenuItemConstructorOptions = {
+      label: app.name,
+      submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'quit' }],
+    };
+    template.push(macAppMenu);
+  }
+
+  template.push(
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Check for Updates...',
+          click: async () => {
+            try {
+              await getUpdateService().checkForUpdates(true);
+            } catch (error) {
+              console.error('Manual update check failed:', error);
+            }
+          },
+        },
+      ],
+    }
+  );
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
   registerIpcHandlers();
+  buildAppMenu();
   createWindow();
+
+  if (!isDev) {
+    setTimeout(() => {
+      getUpdateService()
+        .checkForStartupUpdates()
+        .catch((error) => {
+          console.error('Automatic update check failed:', error);
+        });
+    }, 5000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -380,6 +380,33 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+.dashboard__sync-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard__sync-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dashboard__sync-progress-fill {
+  height: 100%;
+  background: var(--color-primary, #3b82f6);
+  transition: width 0.2s ease;
+}
+
+.dashboard__sync-progress-text {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+  text-align: center;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }

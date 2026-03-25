@@ -96,6 +96,8 @@ export interface SyncProgress {
   repositoryId: string;
   repositoryName: string;
   status: 'syncing' | 'complete' | 'error' | 'skipped';
+  totalRepos?: number;
+  processedRepos?: number;
   newCommits?: number;
   error?: string;
 }
@@ -105,6 +107,18 @@ export interface SyncResult {
   syncedRepos: number;
   totalNewCommits: number;
   errors: { repoName: string; error: string }[];
+}
+
+// App update types
+export type UpdateCheckStatus = 'up-to-date' | 'update-available' | 'error' | 'skipped';
+
+export interface UpdateCheckResult {
+  status: UpdateCheckStatus;
+  currentVersion: string;
+  latestVersion?: string;
+  releaseUrl?: string;
+  prompted?: boolean;
+  message?: string;
 }
 
 // User preferences types

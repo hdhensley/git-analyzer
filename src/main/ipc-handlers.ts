@@ -1,5 +1,11 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { getAuthService, getGitService, getDatabase, getLocalGitService } from './services';
+import {
+  getAuthService,
+  getGitService,
+  getDatabase,
+  getLocalGitService,
+  getUpdateService,
+} from './services';
 import type {
   SCMProvider,
   Repository,
@@ -102,6 +108,7 @@ export function registerIpcHandlers(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     const repos = db.getImportedRepositories();
     const localGit = getLocalGitService();
+    let processedRepos = 0;
     const result: SyncResult = {
       totalRepos: repos.length,
       syncedRepos: 0,
@@ -114,6 +121,8 @@ export function registerIpcHandlers(): void {
         repositoryId: repo.id,
         repositoryName: repo.name,
         status: 'syncing',
+        totalRepos: repos.length,
+        processedRepos,
       };
       window?.webContents.send('sync:progress', progress);
 
@@ -123,6 +132,8 @@ export function registerIpcHandlers(): void {
         if (repo.provider === 'local') {
           if (!repo.localPath) {
             progress.status = 'skipped';
+            processedRepos += 1;
+            progress.processedRepos = processedRepos;
             window?.webContents.send('sync:progress', progress);
             continue;
           }
@@ -131,6 +142,8 @@ export function registerIpcHandlers(): void {
             db.updateRepositoryAvailability(repo.id, false);
             progress.status = 'skipped';
             progress.error = 'Path no longer exists';
+            processedRepos += 1;
+            progress.processedRepos = processedRepos;
             window?.webContents.send('sync:progress', progress);
             continue;
           }
@@ -144,9 +157,10 @@ export function registerIpcHandlers(): void {
           // Cloud repo (github/bitbucket)
           try {
             const existingCommitCount = db.getCommitCount(repo.id);
-            const fetchResult = existingCommitCount === 0
-              ? await gitService.fetchGitLog(repo)
-              : await gitService.fetchNewCommits(repo, repo.lastSyncAt);
+            const fetchResult =
+              existingCommitCount === 0
+                ? await gitService.fetchGitLog(repo)
+                : await gitService.fetchNewCommits(repo, repo.lastSyncAt);
             if (fetchResult.commits.length > 0) {
               db.saveCommits(repo.id, fetchResult.commits);
               newCommits = fetchResult.commits.length;
@@ -155,6 +169,8 @@ export function registerIpcHandlers(): void {
             // If not authenticated, skip rather than fail the whole sync
             progress.status = 'skipped';
             progress.error = authErr instanceof Error ? authErr.message : 'Auth error';
+            processedRepos += 1;
+            progress.processedRepos = processedRepos;
             window?.webContents.send('sync:progress', progress);
             result.errors.push({ repoName: repo.name, error: progress.error });
             continue;
@@ -166,11 +182,15 @@ export function registerIpcHandlers(): void {
         result.totalNewCommits += newCommits;
         progress.status = 'complete';
         progress.newCommits = newCommits;
+        processedRepos += 1;
+        progress.processedRepos = processedRepos;
         window?.webContents.send('sync:progress', progress);
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         progress.status = 'error';
         progress.error = msg;
+        processedRepos += 1;
+        progress.processedRepos = processedRepos;
         window?.webContents.send('sync:progress', progress);
         result.errors.push({ repoName: repo.name, error: msg });
       }
@@ -231,6 +251,13 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('localRepositories:checkGit', async () => {
     return localGitService.isGitAvailable();
+  });
+
+  // Update handlers
+  const updateService = getUpdateService();
+
+  ipcMain.handle('updates:check', async () => {
+    return updateService.checkForUpdates(true);
   });
 
   ipcMain.handle('localRepositories:import', async (event, repositories: LocalRepositoryInfo[]) => {

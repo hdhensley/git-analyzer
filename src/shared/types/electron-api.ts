@@ -15,6 +15,7 @@ import type {
   ScanProgress,
   SyncProgress,
   SyncResult,
+  UpdateCheckResult,
 } from './index';
 
 export interface ElectronAPI {
@@ -56,6 +57,10 @@ export interface ElectronAPI {
     refresh: (repoId: string) => Promise<void>;
     remove: (repoId: string) => Promise<void>;
     checkGit: () => Promise<boolean>;
+  };
+
+  updates: {
+    check: () => Promise<UpdateCheckResult>;
   };
 
   onImportProgress: (callback: (progress: ImportProgress) => void) => () => void;

@@ -50,6 +50,8 @@ export function Dashboard() {
   const [authorGrouping, setAuthorGrouping] = useState<AuthorGrouping>('name');
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncTotalRepos, setSyncTotalRepos] = useState(0);
+  const [syncProcessedRepos, setSyncProcessedRepos] = useState(0);
   const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
   const lastSyncRef = useRef<number>(0);
@@ -80,6 +82,22 @@ export function Dashboard() {
       if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
       handleSync();
     });
+    return cleanup;
+  }, [api]);
+
+  // Real-time sync progress updates
+  useEffect(() => {
+    if (!api) return;
+
+    const cleanup = api.onSyncProgress((progress) => {
+      if (typeof progress.totalRepos === 'number') {
+        setSyncTotalRepos(progress.totalRepos);
+      }
+      if (typeof progress.processedRepos === 'number') {
+        setSyncProcessedRepos(progress.processedRepos);
+      }
+    });
+
     return cleanup;
   }, [api]);
 
@@ -191,7 +209,9 @@ export function Dashboard() {
     if (!api || syncing) return;
     syncingRef.current = true;
     setSyncing(true);
-    setSyncStatus('Syncing...');
+    setSyncStatus(null);
+    setSyncTotalRepos(0);
+    setSyncProcessedRepos(0);
     setSyncErrors([]);
     setSyncErrorsExpanded(false);
     try {
@@ -421,6 +441,21 @@ export function Dashboard() {
               >
                 {syncing ? 'Syncing...' : '↻ Sync Repositories'}
               </button>
+              {syncing && syncTotalRepos > 0 && (
+                <div className="dashboard__sync-progress">
+                  <div className="dashboard__sync-progress-bar">
+                    <div
+                      className="dashboard__sync-progress-fill"
+                      style={{
+                        width: `${Math.round((syncProcessedRepos / syncTotalRepos) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="dashboard__sync-progress-text">
+                    {syncProcessedRepos} / {syncTotalRepos} repositories
+                  </div>
+                </div>
+              )}
               {syncStatus && (
                 <div className="dashboard__sync-status">
                   {syncStatus}
