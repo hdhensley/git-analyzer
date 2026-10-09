@@ -74,7 +74,8 @@ export class AuthService {
   async authenticateWithToken(
     provider: SCMProvider,
     token: string,
-    username?: string
+    username?: string,
+    workspace?: string
   ): Promise<AuthResult> {
     try {
       // Both GitHub PATs and Bitbucket API tokens use Bearer auth
@@ -89,10 +90,12 @@ export class AuthService {
           resolvedUsername: bitbucketUsername,
           useBasicAuth,
           basicAuthUsername,
+          workspaces,
           errorMessage,
         } = await this.validateBitbucketToken(
           parsedBitbucketInput.token,
-          username || parsedBitbucketInput.username
+          username || parsedBitbucketInput.username,
+          workspace
         );
 
         if (!valid) {
@@ -114,6 +117,7 @@ export class AuthService {
               : `${BITBUCKET_BASIC_TOKEN_PREFIX}${parsedBitbucketInput.token}`
             : parsedBitbucketInput.token,
           username: resolvedUsername,
+          bitbucketWorkspaces: workspaces,
         };
 
         await this.secureStorage.setCredentials(provider, credentials);
@@ -337,12 +341,28 @@ export class AuthService {
     // Validate by making a test API call
     try {
       if (provider === 'bitbucket') {
-        const { valid } = await this.validateBitbucketToken(
-          credentials.accessToken,
-          credentials.username
-        );
-        if (!valid) {
+        // Re-validate using the current auth header so a workspace-scoped token
+        // is confirmed against a workspace endpoint rather than account-level
+        // endpoints it cannot access.
+        const authHeader = await this.getAuthHeader(provider);
+        if (!authHeader) {
           return false;
+        }
+
+        const parsedStoredToken = this.parseStoredBitbucketToken(credentials.accessToken);
+        const probeSlug =
+          credentials.bitbucketWorkspaces?.[0] || parsedStoredToken.basicAuthUsername;
+        const { workspaces } = await this.discoverBitbucketWorkspaces(authHeader, probeSlug);
+
+        if (workspaces.length === 0 && !(credentials.bitbucketWorkspaces?.length)) {
+          return false;
+        }
+
+        if (workspaces.length > 0) {
+          await this.secureStorage.setCredentials(provider, {
+            ...credentials,
+            bitbucketWorkspaces: workspaces,
+          });
         }
       } else {
         await this.fetchUsername(provider, credentials.accessToken);
@@ -356,17 +376,20 @@ export class AuthService {
 
   private async validateBitbucketToken(
     token: string,
-    fallbackUsername?: string
+    fallbackUsername?: string,
+    workspaceHint?: string
   ): Promise<{
     valid: boolean;
     resolvedUsername: string;
     useBasicAuth: boolean;
     basicAuthUsername?: string;
+    workspaces?: string[];
     errorMessage?: string;
   }> {
     const parsedStoredToken = this.parseStoredBitbucketToken(token);
     const rawToken = parsedStoredToken.token;
     const providedBasicUsername = fallbackUsername?.trim() || parsedStoredToken.basicAuthUsername;
+    const normalizedWorkspaceHint = workspaceHint?.trim() || undefined;
 
     const authCandidates: Array<{
       useBasicAuth: boolean;
@@ -391,9 +414,11 @@ export class AuthService {
       });
     }
 
-    let lastFailure: string | undefined;
+    const failures: string[] = [];
 
     for (const candidate of authCandidates) {
+      let resolvedUsername = fallbackUsername?.trim() || 'bitbucket-token';
+
       const userResponse = await fetch('https://api.bitbucket.org/2.0/user', {
         headers: {
           Authorization: candidate.authHeader,
@@ -401,55 +426,127 @@ export class AuthService {
         },
       });
 
+      // 401 means the credentials themselves are rejected for this candidate.
+      // Any other status (including 403/404) means we authenticated but the
+      // endpoint is not available to this (likely workspace-scoped) token, so
+      // keep going and resolve access via the workspace listing instead.
+      if (userResponse.status === 401) {
+        failures.push(`${candidate.label}: /user 401`);
+        continue;
+      }
+
       if (userResponse.ok) {
         const data = (await userResponse.json()) as {
           display_name?: string;
           username?: string;
           nickname?: string;
         };
-
-        return {
-          valid: true,
-          resolvedUsername:
-            data.nickname ||
-            data.username ||
-            data.display_name ||
-            fallbackUsername?.trim() ||
-            'bitbucket-token',
-          useBasicAuth: candidate.useBasicAuth,
-          basicAuthUsername: candidate.basicAuthUsername,
-        };
+        resolvedUsername =
+          data.nickname ||
+          data.username ||
+          data.display_name ||
+          fallbackUsername?.trim() ||
+          'bitbucket-token';
       }
 
-      // Some scoped tokens can fail on /user; verify via repository listing instead.
-      const repoResponse = await fetch(
-        'https://api.bitbucket.org/2.0/repositories?role=member&pagelen=1',
-        {
-          headers: {
-            Authorization: candidate.authHeader,
-            Accept: 'application/json',
-          },
-        }
+      // Discover the workspaces this token can access. Scoped API tokens are
+      // workspace-scoped and cannot use account-level endpoints, so repositories
+      // must be listed per workspace.
+      const { workspaces, statusDetail } = await this.discoverBitbucketWorkspaces(
+        candidate.authHeader,
+        normalizedWorkspaceHint || candidate.basicAuthUsername
       );
 
-      if (repoResponse.ok) {
+      if (workspaces.length > 0) {
         return {
           valid: true,
-          resolvedUsername: fallbackUsername?.trim() || 'bitbucket-token',
+          resolvedUsername,
           useBasicAuth: candidate.useBasicAuth,
           basicAuthUsername: candidate.basicAuthUsername,
+          workspaces,
         };
       }
 
-      lastFailure = `Bitbucket rejected token (${candidate.label} auth): /user ${userResponse.status}, /repositories ${repoResponse.status}.`;
+      // If /user succeeded but we could not confirm any workspace, the token is
+      // still valid for the account; accept it with no workspaces discovered.
+      if (userResponse.ok) {
+        return {
+          valid: true,
+          resolvedUsername,
+          useBasicAuth: candidate.useBasicAuth,
+          basicAuthUsername: candidate.basicAuthUsername,
+          workspaces: [],
+        };
+      }
+
+      failures.push(`${candidate.label}: /user ${userResponse.status}, ${statusDetail}`);
     }
 
     return {
       valid: false,
       resolvedUsername: fallbackUsername?.trim() || 'bitbucket-token',
       useBasicAuth: false,
-      errorMessage: lastFailure,
+      errorMessage: `Bitbucket rejected token (${failures.join('; ')}). For a scoped API token, use your Atlassian account email as the username, and ensure the token has the read:account and read:repository Bitbucket scopes.`,
     };
+  }
+
+  /**
+   * Discovers the Bitbucket workspace slugs a credential can access. Tries the
+   * account-level /2.0/workspaces listing first; if that is not available to a
+   * scoped token, falls back to probing the provided username as a workspace
+   * slug via /2.0/repositories/{workspace}.
+   */
+  private async discoverBitbucketWorkspaces(
+    authHeader: string,
+    probeSlug?: string
+  ): Promise<{ workspaces: string[]; statusDetail: string }> {
+    const workspaces = new Set<string>();
+    const details: string[] = [];
+
+    // If an explicit workspace slug is supplied, verify it directly. Scoped API
+    // tokens cannot enumerate workspaces via /2.0/workspaces (that endpoint spans
+    // multiple workspaces and 404s), so a known slug is probed against the
+    // workspace-level repositories endpoint instead. The Basic-auth username for
+    // an API token is the Atlassian email, which is not a slug, so skip anything
+    // containing '@'.
+    const candidateSlug = probeSlug && !probeSlug.includes('@') ? probeSlug.trim() : undefined;
+    if (candidateSlug) {
+      const probe = await fetch(
+        `https://api.bitbucket.org/2.0/repositories/${encodeURIComponent(candidateSlug)}?pagelen=1`,
+        { headers: { Authorization: authHeader, Accept: 'application/json' } }
+      );
+      details.push(`/repositories/${candidateSlug} ${probe.status}`);
+      if (probe.ok) {
+        workspaces.add(candidateSlug);
+        return { workspaces: [...workspaces], statusDetail: details.join(', ') };
+      }
+    }
+
+    // No usable slug hint (or it did not resolve): try the account-level
+    // workspace listing, which works for full-account credentials (OAuth / app
+    // passwords) even though it does not for workspace-scoped API tokens.
+    let nextUrl: string | null = 'https://api.bitbucket.org/2.0/workspaces?pagelen=100';
+    let workspacesStatus = 0;
+    while (nextUrl) {
+      const response: Response = await fetch(nextUrl, {
+        headers: { Authorization: authHeader, Accept: 'application/json' },
+      });
+      workspacesStatus = response.status;
+      if (!response.ok) {
+        break;
+      }
+      const data = (await response.json()) as {
+        values?: Array<{ slug?: string; name?: string }>;
+        next?: string;
+      };
+      for (const ws of data.values ?? []) {
+        if (ws.slug) workspaces.add(ws.slug);
+      }
+      nextUrl = data.next ?? null;
+    }
+    details.push(`/workspaces ${workspacesStatus}`);
+
+    return { workspaces: [...workspaces], statusDetail: details.join(', ') };
   }
 
   private parseBitbucketTokenInput(input: string): { token: string; username?: string } {

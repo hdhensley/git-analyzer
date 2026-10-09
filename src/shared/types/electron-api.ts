@@ -24,7 +24,8 @@ export interface ElectronAPI {
     authenticateWithToken: (
       provider: SCMProvider,
       token: string,
-      username?: string
+      username?: string,
+      workspace?: string
     ) => Promise<AuthResult>;
     isOAuthConfigured: (provider: SCMProvider) => Promise<boolean>;
     getStatus: (provider: SCMProvider) => Promise<AuthStatus>;

@@ -15,6 +15,7 @@ export interface Credentials {
     refreshToken?: string;
     expiresAt?: Date;
     username: string;
+    bitbucketWorkspaces?: string[];
 }
 export interface Repository {
     id: string;

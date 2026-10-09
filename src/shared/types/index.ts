@@ -23,6 +23,10 @@ export interface Credentials {
   refreshToken?: string;
   expiresAt?: Date;
   username: string;
+  // Bitbucket workspace slugs this credential can access. Scoped API tokens are
+  // workspace-scoped and cannot use account-level endpoints, so repositories are
+  // listed per workspace instead of via the account-wide role=member listing.
+  bitbucketWorkspaces?: string[];
 }
 
 // Repository types

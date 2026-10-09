@@ -15,6 +15,7 @@ export class SecureStorage {
       refreshToken: credentials.refreshToken,
       expiresAt: credentials.expiresAt?.toISOString(),
       username: credentials.username,
+      bitbucketWorkspaces: credentials.bitbucketWorkspaces,
     });
     await keytar.setPassword(SERVICE_NAME, account, data);
   }
@@ -34,6 +35,7 @@ export class SecureStorage {
         refreshToken: parsed.refreshToken,
         expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt) : undefined,
         username: parsed.username,
+        bitbucketWorkspaces: parsed.bitbucketWorkspaces,
       };
     } catch {
       return null;

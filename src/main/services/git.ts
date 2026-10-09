@@ -80,7 +80,8 @@ export class GitService {
     if (provider === 'github') {
       return this.listGitHubRepositories(authHeader, page);
     } else {
-      return this.listBitbucketRepositories(authHeader, page);
+      const credentials = await this.authService.getCredentials(provider);
+      return this.listBitbucketRepositories(authHeader, credentials?.bitbucketWorkspaces ?? []);
     }
   }
 
@@ -134,16 +135,13 @@ export class GitService {
 
   private async listBitbucketRepositories(
     authHeader: string,
-    page: number
+    workspaces: string[]
   ): Promise<RepositoryPage> {
-    const allRepositories: Repository[] = [];
-    let nextUrl: string | null = (() => {
-      const url = new URL('https://api.bitbucket.org/2.0/repositories');
-      url.searchParams.set('role', 'member');
-      url.searchParams.set('pagelen', PAGE_SIZE.toString());
-      url.searchParams.set('page', page.toString());
-      return url.toString();
-    })();
+    if (workspaces.length === 0) {
+      throw new Error(
+        'No accessible Bitbucket workspaces found for this token. Reconnect with a scoped API token that has access to at least one workspace.'
+      );
+    }
 
     type BitbucketRepo = {
       uuid: string;
@@ -157,47 +155,64 @@ export class GitService {
       full_name?: string;
     };
 
-    while (nextUrl) {
-      const response = await fetchWithRetry(nextUrl, {
-        headers: {
-          Authorization: authHeader,
-          Accept: 'application/json',
-        },
-      });
+    const allRepositories: Repository[] = [];
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch repositories: ${response.statusText}`);
-      }
+    // Scoped API tokens are workspace-scoped and cannot use the account-wide
+    // /2.0/repositories?role=member listing (it returns 404). List per workspace
+    // via /2.0/repositories/{workspace} instead.
+    for (const workspace of workspaces) {
+      let nextUrl: string | null = (() => {
+        const url = new URL(
+          `https://api.bitbucket.org/2.0/repositories/${encodeURIComponent(workspace)}`
+        );
+        url.searchParams.set('pagelen', PAGE_SIZE.toString());
+        return url.toString();
+      })();
 
-      const data = (await response.json()) as {
-        values: BitbucketRepo[];
-        next?: string;
-        size?: number;
-      };
-
-      for (const repo of data.values) {
-        // Bitbucket API v2: use workspace.slug for API calls (owner.username is deprecated)
-        // full_name is "workspace/repo-slug" which is the most reliable identifier
-        const ownerSlug =
-          repo.workspace?.slug ||
-          repo.full_name?.split('/')[0] ||
-          repo.owner?.nickname ||
-          repo.owner?.username ||
-          repo.owner?.display_name ||
-          'unknown';
-
-        allRepositories.push({
-          id: `bitbucket-${repo.uuid}`,
-          name: repo.slug || repo.name,
-          owner: ownerSlug,
-          provider: 'bitbucket' as const,
-          defaultBranch: repo.mainbranch?.name || 'main',
-          url: repo.links.html.href,
-          parentFolder: repo.project?.name,
+      while (nextUrl) {
+        const response: Response = await fetchWithRetry(nextUrl, {
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/json',
+          },
         });
-      }
 
-      nextUrl = data.next || null;
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch repositories for workspace "${workspace}": ${response.statusText}`
+          );
+        }
+
+        const data = (await response.json()) as {
+          values: BitbucketRepo[];
+          next?: string;
+          size?: number;
+        };
+
+        for (const repo of data.values) {
+          // Bitbucket API v2: use workspace.slug for API calls (owner.username is deprecated)
+          // full_name is "workspace/repo-slug" which is the most reliable identifier
+          const ownerSlug =
+            repo.workspace?.slug ||
+            repo.full_name?.split('/')[0] ||
+            repo.owner?.nickname ||
+            repo.owner?.username ||
+            repo.owner?.display_name ||
+            workspace;
+
+          allRepositories.push({
+            id: `bitbucket-${repo.uuid}`,
+            name: repo.slug || repo.name,
+            owner: ownerSlug,
+            provider: 'bitbucket' as const,
+            defaultBranch: repo.mainbranch?.name || 'main',
+            url: repo.links.html.href,
+            parentFolder: repo.project?.name,
+          });
+        }
+
+        nextUrl = data.next || null;
+      }
     }
 
     return {

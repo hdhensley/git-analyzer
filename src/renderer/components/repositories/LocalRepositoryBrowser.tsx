@@ -274,24 +274,27 @@ export function LocalRepositoryBrowser({ onImportComplete }: LocalRepositoryBrow
               </div>
 
               <div className="local-repo-browser__items">
-                {scanResult.repositories.map(repo => (
-                  <label key={repo.path} className="local-repo-browser__item">
-                    <input
-                      type="checkbox"
-                      checked={selectedRepos.some(r => r.path === repo.path)}
-                      onChange={() => handleToggleRepo(repo)}
-                    />
-                    <div className="local-repo-browser__item-info">
-                      <span className="local-repo-browser__item-name">
-                        {repo.parentFolder ? `${repo.parentFolder}/` : ''}{repo.name}
-                      </span>
-                      <span className="local-repo-browser__item-path">{repo.path}</span>
-                      <span className="local-repo-browser__item-branch">
-                        Branch: {repo.defaultBranch}
-                      </span>
-                    </div>
-                  </label>
-                ))}
+                {scanResult.repositories.map(repo => {
+                  const isSelected = selectedRepos.some(r => r.path === repo.path);
+                  return (
+                    <label key={repo.path} className={`local-repo-browser__item${isSelected ? ' local-repo-browser__item--selected' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleRepo(repo)}
+                      />
+                      <div className="local-repo-browser__item-info">
+                        <span className="local-repo-browser__item-name">
+                          {repo.parentFolder ? `${repo.parentFolder}/` : ''}{repo.name}
+                        </span>
+                        <span className="local-repo-browser__item-path">{repo.path}</span>
+                        <span className="local-repo-browser__item-branch">
+                          {repo.defaultBranch}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
 
               {scanResult.errors.length > 0 && (

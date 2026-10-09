@@ -208,7 +208,7 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
 
       <div className="repository-list__items">
         {filteredRepositories.map(repo => (
-          <label key={repo.id} className="repository-list__item">
+          <label key={repo.id} className={`repository-list__item${selected.has(repo.id) ? ' repository-list__item--selected' : ''}`}>
             <input
               type="checkbox"
               checked={selected.has(repo.id)}

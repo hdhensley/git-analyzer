@@ -18,6 +18,7 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   const [authMode, setAuthMode] = useState<AuthMode>('token');
   const [tokenInput, setTokenInput] = useState('');
   const [bitbucketEmail, setBitbucketEmail] = useState('');
+  const [bitbucketWorkspace, setBitbucketWorkspace] = useState('');
   const [oauthAvailable, setOauthAvailable] = useState(false);
 
   const fetchStatus = async () => {
@@ -70,17 +71,23 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
       setError('Please enter your Atlassian email for Bitbucket API tokens.');
       return;
     }
+    if (provider === 'bitbucket' && !bitbucketWorkspace.trim()) {
+      setError('Please enter your Bitbucket workspace ID for scoped API tokens.');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       const result = await api.auth.authenticateWithToken(
         provider,
         tokenInput.trim(),
-        provider === 'bitbucket' ? bitbucketEmail.trim() : undefined
+        provider === 'bitbucket' ? bitbucketEmail.trim() : undefined,
+        provider === 'bitbucket' ? bitbucketWorkspace.trim() : undefined
       );
       if (result.success) {
         setTokenInput('');
         setBitbucketEmail('');
+        setBitbucketWorkspace('');
         await fetchStatus();
       } else {
         setError(result.error || 'Authentication failed');
@@ -111,7 +118,7 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
   const tokenLabel = provider === 'github' ? 'Personal Access Token' : 'API Token';
   const tokenHelpUrl = provider === 'github'
     ? 'https://github.com/settings/tokens'
-    : 'https://bitbucket.org/account/settings/app-passwords/new';
+    : 'https://id.atlassian.com/manage-profile/security/api-tokens';
 
   if (!api) {
     return (
@@ -194,16 +201,28 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
       {authMode === 'token' ? (
         <div className="auth-status__token-form">
           {provider === 'bitbucket' && (
-            <input
-              type="email"
-              className="auth-status__input"
-              placeholder="Atlassian email"
-              value={bitbucketEmail}
-              onChange={(e) => setBitbucketEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleTokenSubmit()}
-              disabled={loading}
-              aria-label="Atlassian email"
-            />
+            <>
+              <input
+                type="email"
+                className="auth-status__input"
+                placeholder="Atlassian email"
+                value={bitbucketEmail}
+                onChange={(e) => setBitbucketEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleTokenSubmit()}
+                disabled={loading}
+                aria-label="Atlassian email"
+              />
+              <input
+                type="text"
+                className="auth-status__input"
+                placeholder="Workspace ID (e.g. my-team)"
+                value={bitbucketWorkspace}
+                onChange={(e) => setBitbucketWorkspace(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleTokenSubmit()}
+                disabled={loading}
+                aria-label="Bitbucket workspace ID"
+              />
+            </>
           )}
           <input
             type="password"
@@ -220,7 +239,12 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
               type="button"
               className="auth-status__btn auth-status__btn--connect"
               onClick={handleTokenSubmit}
-              disabled={loading || !tokenInput.trim()}
+              disabled={
+                loading ||
+                !tokenInput.trim() ||
+                (provider === 'bitbucket' &&
+                  (!bitbucketEmail.trim() || !bitbucketWorkspace.trim()))
+              }
             >
               {loading ? 'Connecting...' : 'Connect'}
             </button>
@@ -245,6 +269,7 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
                 <li><code>read:repository:bitbucket</code> — list and read repository data</li>
                 <li><code>read:account</code> — verify account identity</li>
                 <li>Use Atlassian email + API token (Basic auth)</li>
+                <li>Workspace ID is the slug in your Bitbucket URL (bitbucket.org/<strong>workspace</strong>/repo)</li>
               </ul>
             )}
           </div>

@@ -30,8 +30,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     'auth:authenticateWithToken',
-    async (_event, provider: SCMProvider, token: string, username?: string) => {
-      return authService.authenticateWithToken(provider, token, username);
+    async (
+      _event,
+      provider: SCMProvider,
+      token: string,
+      username?: string,
+      workspace?: string
+    ) => {
+      return authService.authenticateWithToken(provider, token, username, workspace);
     }
   );
 

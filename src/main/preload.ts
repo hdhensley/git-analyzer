@@ -6,8 +6,8 @@ import type { LocalRepositoryInfo, ScanProgress, SyncProgress } from '../shared/
 const electronAPI: ElectronAPI = {
   auth: {
     authenticate: (provider) => ipcRenderer.invoke('auth:authenticate', provider),
-    authenticateWithToken: (provider, token, username) =>
-      ipcRenderer.invoke('auth:authenticateWithToken', provider, token, username),
+    authenticateWithToken: (provider, token, username, workspace) =>
+      ipcRenderer.invoke('auth:authenticateWithToken', provider, token, username, workspace),
     isOAuthConfigured: (provider) => ipcRenderer.invoke('auth:isOAuthConfigured', provider),
     getStatus: (provider) => ipcRenderer.invoke('auth:getStatus', provider),
     disconnect: (provider) => ipcRenderer.invoke('auth:disconnect', provider),

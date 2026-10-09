@@ -5,9 +5,10 @@
   "description": "Cross-platform desktop application for git analytics across GitHub and Bitbucket repositories",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev": "concurrently -k -n main,renderer,electron -c blue,magenta,green \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",
     "dev:renderer": "vite",
+    "dev:electron": "wait-on http://localhost:5173 dist/main/main.js dist/main/preload.js && cross-env NODE_ENV=development electron .",
     "build": "npm run build:main && npm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
@@ -48,6 +49,7 @@
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",
@@ -60,7 +62,8 @@
     "typescript": "^5.3.3",
     "vite": "^5.0.10",
     "vite-plugin-electron": "^0.28.0",
-    "vitest": "^1.1.0"
+    "vitest": "^1.1.0",
+    "wait-on": "^9.1.0"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",

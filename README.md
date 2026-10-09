@@ -5,7 +5,7 @@ Cross-platform Electron desktop app for visualizing git activity across GitHub, 
 ## Features
 
 - **Multi-source imports** — GitHub, Bitbucket (cloud), and local git repositories
-- **Authentication** — Personal Access Tokens / App Passwords (recommended) or OAuth
+- **Authentication** — Personal Access Tokens (GitHub) / scoped API tokens (Bitbucket), recommended, or OAuth
 - **Contribution graph** — GitHub-style heatmap with per-contributor filtering
 - **Commits per user** — breakdown by author across all imported repos
 - **Repository commit summary** — compare activity across repos
@@ -94,12 +94,17 @@ Outputs go to the `release/` directory.
 
 ## Authentication
 
-### Personal Access Tokens (recommended)
+### Access Tokens (recommended)
 
 No server-side configuration needed — works out of the box.
 
 - **GitHub**: Create a token at [github.com/settings/tokens](https://github.com/settings/tokens) with `repo` and `read:user` scopes
-- **Bitbucket**: Create an app password at [bitbucket.org/account/settings/app-passwords](https://bitbucket.org/account/settings/app-passwords) with Repository Read and Account Read permissions. Requires your Bitbucket username.
+- **Bitbucket**: Create a scoped API token at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) with the `read:repository:bitbucket` and `read:account` scopes. Connecting requires three things:
+  - your **Atlassian account email** (used as the Basic auth username)
+  - the **API token**
+  - your **workspace ID** — the slug in your repository URLs, e.g. `my-team` in `bitbucket.org/my-team/some-repo`
+
+  Scoped API tokens are workspace-scoped and cannot enumerate workspaces or use account-level endpoints, so the workspace ID must be supplied explicitly. (Legacy app passwords are deprecated by Atlassian.)
 
 ### OAuth
 
@@ -136,7 +141,7 @@ src/
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start dev mode (main + renderer) |
+| `npm run dev` | Start dev mode (main + renderer + Electron) |
 | `npm run build` | Build main + renderer |
 | `npm start` | Launch built Electron app |
 | `npm test` | Run tests |
