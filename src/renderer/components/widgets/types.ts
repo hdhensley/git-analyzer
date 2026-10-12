@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { Commit, DateRange } from '../../../shared/types';
+import type { Commit, DateRange, Repository } from '../../../shared/types';
 
 export type GitLogField = 'hash' | 'authorName' | 'authorEmail' | 'date' | 'message';
 
@@ -9,6 +9,8 @@ export interface ChartWidgetProps {
   commits: Commit[];
   dateRange: DateRange | null;
   selectedRepoIds: string[];
+  /** The currently selected repositories (metadata for repo-oriented widgets). */
+  repositories: Repository[];
   authorGrouping: AuthorGrouping;
   onError: (error: Error) => void;
 }

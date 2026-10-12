@@ -82,6 +82,14 @@ export class DatabaseService {
         custom_start_date DATETIME,
         custom_end_date DATETIME
       );
+
+      -- Cached Snyk issue-count result (single row). The payload is the full
+      -- SnykHealthResult JSON; fetched_at drives TTL-based refresh.
+      CREATE TABLE IF NOT EXISTS snyk_cache (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        payload TEXT NOT NULL,
+        fetched_at DATETIME NOT NULL
+      );
     `);
 
     // Run migrations for existing databases
@@ -404,6 +412,26 @@ export class DatabaseService {
     return prefs;
   }
 
+  // Snyk cache operations
+  saveSnykCache(payload: string, fetchedAt: Date): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO snyk_cache (id, payload, fetched_at)
+      VALUES (1, ?, ?)
+    `);
+    stmt.run(payload, fetchedAt.toISOString());
+  }
+
+  getSnykCache(): { payload: string; fetchedAt: Date } | null {
+    const stmt = this.db.prepare('SELECT payload, fetched_at FROM snyk_cache WHERE id = 1');
+    const row = stmt.get() as { payload: string; fetched_at: string } | undefined;
+    if (!row) return null;
+    return { payload: row.payload, fetchedAt: new Date(row.fetched_at) };
+  }
+
+  clearSnykCache(): void {
+    this.db.exec('DELETE FROM snyk_cache');
+  }
+
   // Data management
   clearAllData(): void {
     this.db.exec(`
@@ -411,6 +439,7 @@ export class DatabaseService {
       DELETE FROM repositories;
       DELETE FROM providers;
       DELETE FROM preferences;
+      DELETE FROM snyk_cache;
     `);
   }
 

@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChartWidgetProps } from './types';
+import type { SnykRepoIssueCounts, SnykHealthResult } from '../../../shared/types';
+import { useElectronAPI } from '../../hooks';
 import './RepoHealthWidget.css';
 
 interface RepoHealth {
@@ -16,6 +18,49 @@ interface RepoHealth {
 
 export function RepoHealthWidget({ commits, authorGrouping }: ChartWidgetProps) {
   const groupByName = authorGrouping === 'name';
+  const api = useElectronAPI();
+
+  const [snykConnected, setSnykConnected] = useState(false);
+  const [snykCounts, setSnykCounts] = useState<Record<string, SnykRepoIssueCounts>>({});
+  const [snykLoading, setSnykLoading] = useState(false);
+  const [snykError, setSnykError] = useState<string | null>(null);
+  const [snykDiag, setSnykDiag] = useState<SnykHealthResult['diagnostics'] | null>(null);
+  const [snykFetchedAt, setSnykFetchedAt] = useState<string | null>(null);
+  const [snykFromCache, setSnykFromCache] = useState(false);
+
+  // Loads Snyk counts. `force` kicks off a live refresh even when the cached
+  // copy is still within its TTL window (the manual override).
+  const loadSnyk = useCallback(
+    async (force: boolean) => {
+      if (!api) return;
+      try {
+        const status = await api.snyk.getStatus();
+        setSnykConnected(status.connected);
+        if (!status.connected) {
+          setSnykCounts({});
+          return;
+        }
+        setSnykLoading(true);
+        setSnykError(null);
+        const health = await api.snyk.getHealth(force ? { force: true } : undefined);
+        setSnykCounts(health.countsByRepoName);
+        setSnykDiag(health.diagnostics ?? null);
+        setSnykFetchedAt(health.fetchedAt);
+        setSnykFromCache(health.cached === true);
+      } catch (err) {
+        setSnykError(err instanceof Error ? err.message : 'Failed to load Snyk data');
+      } finally {
+        setSnykLoading(false);
+      }
+    },
+    [api]
+  );
+
+  // On mount, load counts (served from cache when fresh, so no re-crawl on
+  // every page load).
+  useEffect(() => {
+    loadSnyk(false);
+  }, [loadSnyk]);
 
   const repos = useMemo<RepoHealth[]>(() => {
     const now = new Date();
@@ -56,9 +101,58 @@ export function RepoHealthWidget({ commits, authorGrouping }: ChartWidgetProps) 
 
   const stalenessClass = (days: number) => days <= 7 ? 'repo-health__staleness--fresh' : days <= 30 ? 'repo-health__staleness--recent' : days <= 90 ? 'repo-health__staleness--stale' : 'repo-health__staleness--dead';
 
+  const lookupSnyk = (repoName: string): SnykRepoIssueCounts | undefined =>
+    snykCounts[repoName.trim().toLowerCase()];
+
+  const gridClass = snykConnected ? 'repo-health__table repo-health__table--snyk' : 'repo-health__table';
+
+  const formatAge = (iso: string): string => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
   return (
     <div className="repo-health">
-      <div className="repo-health__table">
+      {snykConnected && (
+        <div className="repo-health__snyk-bar">
+          <span className="repo-health__snyk-meta">
+            {snykLoading ? (
+              'Refreshing Snyk issue counts…'
+            ) : snykError ? (
+              <span className="repo-health__snyk-error-text">Snyk: {snykError}</span>
+            ) : snykDiag ? (
+              <>
+                Snyk: {snykDiag.criticalHighIssues} critical/high across{' '}
+                {Object.keys(snykCounts).length} repos
+                {snykFetchedAt && (
+                  <>
+                    {' · '}updated {formatAge(snykFetchedAt)}
+                    {snykFromCache ? ' (cached)' : ''}
+                  </>
+                )}
+              </>
+            ) : (
+              'Snyk connected'
+            )}
+          </span>
+          <button
+            type="button"
+            className="repo-health__snyk-refresh"
+            onClick={() => loadSnyk(true)}
+            disabled={snykLoading}
+            title="Fetch fresh issue counts from Snyk now"
+          >
+            {snykLoading ? '↻ Refreshing…' : '↻ Refresh'}
+          </button>
+        </div>
+      )}
+      <div className={gridClass}>
         <div className="repo-health__header-row">
           <span>Repository</span>
           <span>Commits</span>
@@ -66,21 +160,36 @@ export function RepoHealthWidget({ commits, authorGrouping }: ChartWidgetProps) 
           <span>Commits/wk</span>
           <span>Branches</span>
           <span>Contributors</span>
+          {snykConnected && <span title="Snyk critical open issues">Critical</span>}
+          {snykConnected && <span title="Snyk high open issues">High</span>}
         </div>
-        {repos.map(r => (
-          <div key={r.repoId} className="repo-health__row">
-            <span className="repo-health__repo-name">
-              {r.parentFolder ? `${r.parentFolder}/` : ''}{r.repoName}
-            </span>
-            <span>{r.totalCommits}</span>
-            <span className={`repo-health__staleness ${stalenessClass(r.daysSinceLastCommit)}`}>
-              {r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
-            </span>
-            <span>{r.commitsPerWeek}</span>
-            <span>{r.activeBranches}</span>
-            <span>{r.uniqueContributors}</span>
-          </div>
-        ))}
+        {repos.map(r => {
+          const snyk = snykConnected ? lookupSnyk(r.repoName) : undefined;
+          return (
+            <div key={r.repoId} className="repo-health__row">
+              <span className="repo-health__repo-name">
+                {r.parentFolder ? `${r.parentFolder}/` : ''}{r.repoName}
+              </span>
+              <span>{r.totalCommits}</span>
+              <span className={`repo-health__staleness ${stalenessClass(r.daysSinceLastCommit)}`}>
+                {r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
+              </span>
+              <span>{r.commitsPerWeek}</span>
+              <span>{r.activeBranches}</span>
+              <span>{r.uniqueContributors}</span>
+              {snykConnected && (
+                <span className={`repo-health__sev repo-health__sev--critical ${snyk && snyk.critical > 0 ? 'repo-health__sev--active' : ''}`}>
+                  {snyk ? snyk.critical : 0}
+                </span>
+              )}
+              {snykConnected && (
+                <span className={`repo-health__sev repo-health__sev--high ${snyk && snyk.high > 0 ? 'repo-health__sev--active' : ''}`}>
+                  {snyk ? snyk.high : 0}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -89,7 +198,7 @@ export function RepoHealthWidget({ commits, authorGrouping }: ChartWidgetProps) 
 export const RepoHealthWidgetDefinition = {
   id: 'repo-health',
   name: 'Repository Health',
-  description: 'Activity, staleness, branch count, and velocity per repository',
+  description: 'Activity, staleness, branch count, velocity, and Snyk issue counts per repository',
   requiredFields: ['date'] as const,
   supportsDateFilter: true,
   supportsRepoFilter: true,

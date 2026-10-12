@@ -1,0 +1,308 @@
+.scm-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.scm-compare__header h3 {
+  margin: 0;
+}
+
+.scm-compare__loading,
+.scm-compare__empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-muted, #6b7280);
+}
+
+.scm-compare__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 6px;
+}
+
+.scm-compare__error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--color-danger-bg, #fef2f2);
+  color: var(--color-danger, #ef4444);
+  border-radius: 6px;
+}
+
+.scm-compare__error button {
+  margin-left: auto;
+  padding: 0.25rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-danger, #ef4444);
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.scm-compare__error-icon {
+  font-size: 1.5rem;
+}
+
+.scm-compare__source-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scm-compare__source-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.scm-compare__source-btn:hover:not(:disabled) {
+  background: var(--bg-secondary, #f3f4f6);
+}
+
+.scm-compare__source-btn--active {
+  background: var(--color-primary, #2563eb);
+  border-color: var(--color-primary, #2563eb);
+  color: white;
+}
+
+.scm-compare__source-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scm-compare__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.scm-compare__control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.scm-compare__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  /* Keep a fixed label height so the control inputs below align across columns. */
+  line-height: 1.2;
+  min-height: 0.9rem;
+}
+
+.scm-compare__select {
+  min-width: 20rem;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: white;
+  font-size: 0.875rem;
+}
+
+.scm-compare__folder-path {
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+  word-break: break-all;
+  max-width: 24rem;
+}
+
+.scm-compare__primary-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary, #2563eb);
+  color: white;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.scm-compare__primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scm-compare__secondary-btn {
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: white;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.scm-compare__secondary-btn:hover:not(:disabled) {
+  background: var(--bg-secondary, #f3f4f6);
+}
+
+.scm-compare__secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scm-compare__summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.scm-compare__summary-item {
+  font-size: 0.875rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.scm-compare__summary-item--present {
+  color: var(--color-success, #16a34a);
+  font-weight: 600;
+}
+
+.scm-compare__summary-item--missing {
+  color: var(--color-warning, #d97706);
+  font-weight: 600;
+}
+
+.scm-compare__clone-all-btn {
+  margin-left: auto;
+}
+
+.scm-compare__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.scm-compare__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: white;
+}
+
+.scm-compare__row--present {
+  border-color: var(--color-success-border, #bbf7d0);
+  background: var(--color-success-bg, #f0fdf4);
+}
+
+.scm-compare__row--missing {
+  border-color: var(--color-warning-border, #fde68a);
+  background: var(--color-warning-bg, #fffbeb);
+}
+
+.scm-compare__row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.scm-compare__row-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.scm-compare__row-branches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.75rem;
+}
+
+.scm-compare__branch {
+  color: var(--color-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.scm-compare__branch-label {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.65rem;
+  color: var(--color-muted, #9ca3af);
+}
+
+.scm-compare__branch-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-text, #374151);
+}
+
+.scm-compare__row-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.scm-compare__badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--color-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.scm-compare__badge--present {
+  background: var(--color-success-bg, #f0fdf4);
+  color: var(--color-success, #16a34a);
+}
+
+.scm-compare__badge--missing {
+  background: var(--color-warning-bg, #fffbeb);
+  color: var(--color-warning, #d97706);
+}
+
+.scm-compare__badge--cloning {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.scm-compare__badge--complete {
+  background: var(--color-success-bg, #f0fdf4);
+  color: var(--color-success, #16a34a);
+}
+
+.scm-compare__badge--error {
+  background: var(--color-danger-bg, #fef2f2);
+  color: var(--color-danger, #ef4444);
+  white-space: normal;
+}
+
+.scm-compare__clone-btn {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-primary, #2563eb);
+  border-radius: 6px;
+  background: white;
+  color: var(--color-primary, #2563eb);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.scm-compare__clone-btn:hover:not(:disabled) {
+  background: var(--color-primary, #2563eb);
+  color: white;
+}
+
+.scm-compare__clone-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

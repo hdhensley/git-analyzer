@@ -645,6 +645,8 @@ export class AuthService {
     return this.secureStorage.getCredentials(provider);
   }
 
+
+
   /**
    * Returns the appropriate Authorization header value for the provider.
    * Handles both OAuth (Bearer) and app password (Basic) auth for Bitbucket.

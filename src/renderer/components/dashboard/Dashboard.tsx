@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
-import { AuthStatus } from '../auth';
-import { RepositoryList, ImportProgress, LocalRepositoryBrowser } from '../repositories';
+import { AuthStatus, SnykConnection } from '../auth';
+import { RepositoryList, ImportProgress, LocalRepositoryBrowser, ScmLocalCompare } from '../repositories';
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
-import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition } from '../widgets';
+import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition, DefaultBranchWidgetDefinition } from '../widgets';
 import type { Repository, Commit, DateRange, DateRangePreset, UserPreferences } from '../../../shared/types';
 import type { AuthorGrouping } from '../widgets';
 import './Dashboard.css';
@@ -20,8 +20,9 @@ WidgetRegistry.register(BusFactorWidgetDefinition);
 WidgetRegistry.register(CommitMessageAnalysisWidgetDefinition);
 WidgetRegistry.register(RepoHealthWidgetDefinition);
 WidgetRegistry.register(AuthorRepoMatrixWidgetDefinition);
+WidgetRegistry.register(DefaultBranchWidgetDefinition);
 
-type View = 'connect' | 'import' | 'importing' | 'analytics';
+type View = 'connect' | 'import' | 'importing' | 'analytics' | 'compare';
 type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'insights';
 type ImportSource = null | 'local' | 'github' | 'bitbucket';
 
@@ -35,6 +36,7 @@ export function Dashboard() {
   // Auth state
   const [githubConnected, setGithubConnected] = useState(false);
   const [bitbucketConnected, setBitbucketConnected] = useState(false);
+  const [snykConnected, setSnykConnected] = useState(false);
   
   // Import state
   const [selectedRepos, setSelectedRepos] = useState<Repository[]>([]);
@@ -44,6 +46,7 @@ export function Dashboard() {
   // Analytics state
   const [commits, setCommits] = useState<Commit[]>([]);
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
+  const [importedRepositories, setImportedRepositories] = useState<Repository[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset | undefined>();
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,9 @@ export function Dashboard() {
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
   const lastSyncRef = useRef<number>(0);
   const syncingRef = useRef(false);
+  // Mirror of snykConnected so the background sync (whose closures are captured
+  // at mount) always sees the live connection state.
+  const snykConnectedRef = useRef(false);
 
   const SYNC_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
   const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
@@ -66,6 +72,29 @@ export function Dashboard() {
       loadPreferences();
     }
   }, [api]);
+
+  // Resolve connection status on mount so views other than Connect (e.g.
+  // Compare) know whether providers are connected without first visiting Connect.
+  useEffect(() => {
+    if (!api) return;
+    api.auth
+      .getStatus('github')
+      .then((s) => setGithubConnected(s.connected))
+      .catch(() => {});
+    api.auth
+      .getStatus('bitbucket')
+      .then((s) => setBitbucketConnected(s.connected))
+      .catch(() => {});
+    api.snyk
+      .getStatus()
+      .then((s) => setSnykConnected(s.connected))
+      .catch(() => {});
+  }, [api]);
+
+  // Keep the ref aligned with state for background-sync closures.
+  useEffect(() => {
+    snykConnectedRef.current = snykConnected;
+  }, [snykConnected]);
 
   // Fetch commits when filters change (only when api is available)
   useEffect(() => {
@@ -121,6 +150,12 @@ export function Dashboard() {
       if (prefs.selectedRepositoryIds.length > 0) {
         setSelectedRepoIds(prefs.selectedRepositoryIds);
         setView('analytics');
+        try {
+          const imported = await api.repositories.getImported();
+          setImportedRepositories(imported);
+        } catch (err) {
+          console.error('Failed to load imported repositories:', err);
+        }
       }
       if (prefs.dateRangePreset) {
         setDateRangePreset(prefs.dateRangePreset);
@@ -194,6 +229,7 @@ export function Dashboard() {
     }
     const imported = await api.repositories.getImported();
     if (imported.length > 0) {
+      setImportedRepositories(imported);
       setSelectedRepoIds(imported.map(r => r.id));
       setView('analytics');
     } else {
@@ -240,10 +276,25 @@ export function Dashboard() {
       syncingRef.current = false;
       setSyncing(false);
     }
+
+    // Refresh Snyk issue counts as part of the background sync. This is a
+    // non-forced call, so it only re-crawls Snyk once the cached counts fall
+    // outside their TTL window; otherwise it's a cheap cache read. The
+    // Repository Health widget picks up refreshed counts on its next load.
+    if (snykConnectedRef.current) {
+      try {
+        await api.snyk.getHealth();
+      } catch (err) {
+        console.error('Snyk refresh error:', err);
+      }
+    }
   };
 
   const anyConnected = githubConnected || bitbucketConnected;
   const widgets = WidgetRegistry.getWidgets();
+  const selectedRepositories = importedRepositories.filter((r) =>
+    selectedRepoIds.includes(r.id)
+  );
 
   return (
     <div className="dashboard">
@@ -271,6 +322,13 @@ export function Dashboard() {
           >
             Analytics
           </button>
+          <button
+            type="button"
+            className={view === 'compare' ? 'active' : ''}
+            onClick={() => setView('compare')}
+          >
+            Compare
+          </button>
         </nav>
       </header>
 
@@ -288,6 +346,12 @@ export function Dashboard() {
                 provider="bitbucket" 
                 onStatusChange={(s) => setBitbucketConnected(s.connected)} 
               />
+            </div>
+            <p className="dashboard__connect-subhead">
+              Optionally connect Snyk to see critical and high issue counts in Repository Health.
+            </p>
+            <div className="dashboard__auth-providers">
+              <SnykConnection onStatusChange={(s) => setSnykConnected(s.connected)} />
             </div>
             {anyConnected && (
               <button 
@@ -426,6 +490,18 @@ export function Dashboard() {
             <ImportProgress 
               repositories={importingRepos}
               onComplete={handleImportComplete}
+            />
+          </section>
+        )}
+
+        {view === 'compare' && (
+          <section className="dashboard__section">
+            <h2>Compare SCM to Local</h2>
+            <p>Compare a Bitbucket project against a local folder and clone any missing repositories.</p>
+            <ScmLocalCompare
+              githubConnected={githubConnected}
+              bitbucketConnected={bitbucketConnected}
+              onConnectClick={() => setView('connect')}
             />
           </section>
         )}
@@ -571,6 +647,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -580,6 +657,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -589,6 +667,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -598,6 +677,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -612,6 +692,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -621,6 +702,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -630,6 +712,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -644,6 +727,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -653,6 +737,17 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="default-branch-overview"
+                      definition={DefaultBranchWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -667,6 +762,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
@@ -676,6 +772,7 @@ export function Dashboard() {
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />

@@ -1,6 +1,52 @@
 // SCM Provider types
 export type SCMProvider = 'github' | 'bitbucket';
 
+// Snyk integration types
+
+// Connection status for the Snyk security integration.
+export interface SnykStatus {
+  connected: boolean;
+  username?: string; // Snyk user/account name resolved from the token
+  orgId?: string; // The Snyk organization the issue counts are scoped to
+  orgName?: string; // Human-friendly org name, when resolvable
+}
+
+export interface SnykConnectResult {
+  success: boolean;
+  username?: string;
+  orgName?: string;
+  error?: string;
+}
+
+// Critical/high issue counts for a single project target (keyed by repo name).
+export interface SnykRepoIssueCounts {
+  // Normalized repository name used to join against imported repositories.
+  repoName: string;
+  critical: number;
+  high: number;
+}
+
+// Aggregate result returned to the renderer. `countsByRepoName` is keyed by the
+// lowercased repository name so the Repository Health widget can look up counts
+// without caring about the exact Snyk target naming.
+export interface SnykHealthResult {
+  fetchedAt: string; // ISO timestamp of when counts were fetched
+  countsByRepoName: Record<string, SnykRepoIssueCounts>;
+  // True when these counts came from the local cache rather than a live fetch.
+  cached?: boolean;
+  // True when the cached counts are older than the TTL (a background/forced
+  // refresh is warranted). Only meaningful when `cached` is true.
+  stale?: boolean;
+  // Diagnostics to explain mismatches between Snyk and the repo list. Useful
+  // when a repo shows 0 but Snyk reports issues.
+  diagnostics?: {
+    totalIssues: number;
+    criticalHighIssues: number;
+    unmatchedIssues: number; // critical/high issues whose project couldn't be mapped
+    projectNames: string[]; // normalized repo names discovered from Snyk projects
+  };
+}
+
 // Extended to include 'local' as a repository source
 export type RepositorySource = 'github' | 'bitbucket' | 'local';
 
@@ -27,6 +73,11 @@ export interface Credentials {
   // workspace-scoped and cannot use account-level endpoints, so repositories are
   // listed per workspace instead of via the account-wide role=member listing.
   bitbucketWorkspaces?: string[];
+  // Snyk organization ID that issue counts are scoped to. Only set for the
+  // Snyk credential.
+  snykOrgId?: string;
+  // Human-friendly Snyk organization name, when resolvable.
+  snykOrgName?: string;
 }
 
 // Repository types
@@ -195,6 +246,52 @@ export interface ScanResult {
 export interface ScanError {
   path: string;
   error: string;
+}
+
+// SCM-to-local comparison types
+
+// A grouping of repositories within an SCM source. The grouping maps to a
+// provider-native concept: a project in Bitbucket, the owner/org in GitHub.
+// `name` is the display name (and what `Repository.parentFolder` carries).
+export interface ScmProjectGroup {
+  provider: SCMProvider;
+  name: string; // e.g. "Microservices" (Bitbucket project) or "my-org" (GitHub owner)
+  repositoryCount: number;
+}
+
+// A single SCM repository within a project group, enriched with the clone URL
+// needed to pull it down locally.
+export interface ScmProjectRepository {
+  provider: SCMProvider;
+  name: string; // Repository slug, e.g. "payments-service"
+  owner: string; // Workspace slug (Bitbucket) or owner/org (GitHub)
+  group?: string; // Project group name this repo belongs to (parentFolder)
+  defaultBranch: string;
+  url: string; // Browser URL
+  httpsCloneUrl: string; // Unauthenticated https clone URL (credentials added in main at clone time)
+  sshCloneUrl: string; // SSH clone URL (e.g. git@bitbucket.org:workspace/repo.git)
+}
+
+// Result of comparing a group's repositories against a local folder.
+export interface ScmLocalComparisonEntry {
+  repository: ScmProjectRepository;
+  present: boolean; // A matching subdirectory exists in the local folder
+  localPath?: string; // Absolute path of the matching local directory, when present
+  isGitRepo?: boolean; // Whether the matching local directory is itself a git repo
+  localBranch?: string; // Currently checked-out branch of the local clone, when it is a git repo
+}
+
+export interface ScmLocalComparison {
+  localFolder: string;
+  entries: ScmLocalComparisonEntry[];
+}
+
+// Progress during a clone operation (one event per repository).
+export interface CloneProgress {
+  repositoryName: string;
+  status: 'pending' | 'cloning' | 'complete' | 'error';
+  localPath?: string;
+  error?: string;
 }
 
 // Error types for local repository operations

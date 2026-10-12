@@ -29,4 +29,9 @@ export {
 } from './CommitMessageAnalysisWidget';
 export { RepoHealthWidget, RepoHealthWidgetDefinition } from './RepoHealthWidget';
 export { AuthorRepoMatrixWidget, AuthorRepoMatrixWidgetDefinition } from './AuthorRepoMatrixWidget';
+export {
+  DefaultBranchWidget,
+  DefaultBranchWidgetDefinition,
+  classifyDefaultBranch,
+} from './DefaultBranchWidget';
 export type { ChartWidgetProps, ChartWidgetDefinition, GitLogField, AuthorGrouping } from './types';

@@ -1,0 +1,111 @@
+.default-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.default-branch--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  color: var(--color-muted, #6b7280);
+}
+
+.default-branch__summary {
+  font-size: 0.9rem;
+}
+
+.default-branch__summary-ok {
+  color: var(--color-success, #15803d);
+}
+
+.default-branch__summary-warn {
+  color: var(--color-warning, #b45309);
+  font-weight: 600;
+}
+
+.default-branch__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.default-branch__table th,
+.default-branch__table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  vertical-align: top;
+}
+
+.default-branch__table th {
+  color: var(--color-muted, #6b7280);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.default-branch__repo-folder {
+  color: var(--color-muted, #6b7280);
+}
+
+.default-branch__source {
+  white-space: nowrap;
+  color: var(--color-muted, #6b7280);
+}
+
+.default-branch__branch code,
+.default-branch__suggestion code {
+  background: var(--bg-tertiary, #f3f4f6);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.default-branch__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.default-branch__badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.default-branch__badge--on-target {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-success, #15803d);
+  border-color: var(--color-success, #15803d);
+}
+
+.default-branch__badge--needs-conversion {
+  background: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning, #b45309);
+  border-color: var(--color-warning, #b45309);
+}
+
+.default-branch__suggestion {
+  font-size: 0.8rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.default-branch__note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-muted, #6b7280);
+  line-height: 1.4;
+}
+
+.default-branch__note code {
+  background: var(--bg-tertiary, #f3f4f6);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}

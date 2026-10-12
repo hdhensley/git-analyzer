@@ -46,7 +46,7 @@ interface ChartWidgetWrapperProps extends ChartWidgetProps {
   definition: ChartWidgetDefinition;
 }
 
-export function ChartWidget({ definition, commits, dateRange, selectedRepoIds, authorGrouping, onError }: ChartWidgetWrapperProps) {
+export function ChartWidget({ definition, commits, dateRange, selectedRepoIds, repositories, authorGrouping, onError }: ChartWidgetWrapperProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const WidgetComponent = definition.component;
 
@@ -76,6 +76,7 @@ export function ChartWidget({ definition, commits, dateRange, selectedRepoIds, a
               commits={commits}
               dateRange={dateRange}
               selectedRepoIds={selectedRepoIds}
+              repositories={repositories}
               authorGrouping={authorGrouping}
               onError={onError}
             />

@@ -11,9 +11,22 @@ import type {
   ScanError,
   Commit,
   CommitData,
+  ScmProjectRepository,
+  ScmLocalComparison,
+  ScmLocalComparisonEntry,
 } from '../../shared/types';
 
 const execAsync = promisify(exec);
+
+/**
+ * Removes embedded credentials from any string that may contain an
+ * authenticated URL, so tokens never leak into logs or error messages. Kept as
+ * a defensive guard on clone error output even though SSH URLs carry no secret.
+ */
+export function redactCloneUrl(text: string): string {
+  // Replace the "user:pass@" userinfo segment of any https URL with "***@".
+  return text.replace(/(https:\/\/)[^@/\s]+@/g, '$1***@');
+}
 
 export class LocalGitService {
   /**
@@ -201,6 +214,171 @@ export class LocalGitService {
     await scanDirectory(rootPath);
 
     return { repositories, errors };
+  }
+
+  /**
+   * Opens a native directory picker for choosing the folder to compare against.
+   * @returns Selected directory path or null if cancelled
+   */
+  async selectFolder(title = 'Select Local Folder'): Promise<string | null> {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title,
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+
+    return result.filePaths[0];
+  }
+
+  /**
+   * Returns the names of immediate child directories of a folder.
+   * @param folderPath - Folder to list
+   */
+  async listSubdirectories(folderPath: string): Promise<string[]> {
+    const entries = await readdir(folderPath, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  }
+
+  /**
+   * Compares a set of SCM repositories against the immediate subdirectories of a
+   * local folder, flagging each repository as present or missing locally.
+   * Matching is done on repository slug/name, case-insensitively.
+   */
+  async compareWithLocalFolder(
+    localFolder: string,
+    repositories: ScmProjectRepository[]
+  ): Promise<ScmLocalComparison> {
+    const folderExists = await this.validateRepositoryPath(localFolder);
+    if (!folderExists) {
+      throw new Error(`Local folder not found: ${localFolder}`);
+    }
+
+    const subdirs = await this.listSubdirectories(localFolder);
+    const byLowerName = new Map<string, string>();
+    for (const name of subdirs) {
+      byLowerName.set(name.toLowerCase(), name);
+    }
+
+    const entries: ScmLocalComparisonEntry[] = [];
+    for (const repository of repositories) {
+      const matchName = byLowerName.get(repository.name.toLowerCase());
+      if (!matchName) {
+        entries.push({ repository, present: false });
+        continue;
+      }
+
+      const localPath = path.join(localFolder, matchName);
+      let isGitRepo = false;
+      try {
+        const gitStat = await stat(path.join(localPath, '.git'));
+        isGitRepo = gitStat.isDirectory() || gitStat.isFile();
+      } catch {
+        isGitRepo = false;
+      }
+
+      const localBranch = isGitRepo ? await this.getCurrentBranch(localPath) : undefined;
+
+      entries.push({ repository, present: true, localPath, isGitRepo, localBranch });
+    }
+
+    return { localFolder, entries };
+  }
+
+  /**
+   * Clones a repository into {destinationDir}/{name}. Intended to be given an
+   * SSH clone URL (git@host:owner/repo.git) so it uses the user's existing SSH
+   * keys/agent. Runs non-interactively: if SSH auth is not set up for the host,
+   * git fails fast rather than blocking on a prompt, and the error is surfaced.
+   * @returns The absolute path the repository was cloned into
+   */
+  async cloneRepository(
+    cloneUrl: string,
+    destinationDir: string,
+    name: string
+  ): Promise<{ path: string }> {
+    const gitAvailable = await this.isGitAvailable();
+    if (!gitAvailable) {
+      throw new Error('Git is not installed or not accessible');
+    }
+
+    const targetPath = path.join(destinationDir, name);
+
+    try {
+      await execAsync(`git clone ${JSON.stringify(cloneUrl)} ${JSON.stringify(targetPath)}`, {
+        maxBuffer: 50 * 1024 * 1024,
+        env: {
+          ...process.env,
+          // Never block on an interactive credential prompt.
+          GIT_TERMINAL_PROMPT: '0',
+          // Fail fast instead of prompting for an unknown host key or password;
+          // honor the user's existing keys via BatchMode SSH.
+          GIT_SSH_COMMAND:
+            process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new',
+        },
+      });
+      return { path: targetPath };
+    } catch (err) {
+      // redactCloneUrl is harmless for SSH URLs and still guards any https
+      // fallback a URL might contain.
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to clone ${name}: ${redactCloneUrl(rawMessage)}`);
+    }
+  }
+
+  /**
+   * Returns the branch currently checked out in a local repository, without the
+   * misleading 'main' fallback used by {@link detectDefaultBranch}.
+   * @returns The branch name, '(detached)' for a detached HEAD, or undefined if
+   *   the branch cannot be determined.
+   */
+  async getCurrentBranch(repoPath: string): Promise<string | undefined> {
+    // Primary: ask git directly. Augment PATH so a packaged macOS .app (which
+    // launches with a minimal PATH) can still find Homebrew/Xcode git.
+    try {
+      const { stdout } = await execAsync('git symbolic-ref --short HEAD', {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          PATH: `${process.env.PATH ?? ''}:/opt/homebrew/bin:/usr/local/bin:/usr/bin`,
+        },
+      });
+      const branch = stdout.trim();
+      if (branch) return branch;
+    } catch {
+      // symbolic-ref fails on a detached HEAD or when git is unavailable;
+      // fall through to inspect the HEAD file directly.
+    }
+
+    // Fallback: read HEAD without git. Resolve a `.git` that is a gitdir
+    // pointer file (worktrees/submodules) to the real git directory first.
+    try {
+      const { readFile } = await import('fs/promises');
+      let gitDir = path.join(repoPath, '.git');
+      const gitEntry = await stat(gitDir);
+      if (gitEntry.isFile()) {
+        // ".git" file contains "gitdir: <path>"
+        const pointer = (await readFile(gitDir, 'utf-8')).trim();
+        const match = pointer.match(/^gitdir:\s*(.+)$/);
+        if (match) {
+          const resolved = match[1].trim();
+          gitDir = path.isAbsolute(resolved) ? resolved : path.resolve(repoPath, resolved);
+        }
+      }
+
+      const headContent = (await readFile(path.join(gitDir, 'HEAD'), 'utf-8')).trim();
+      if (headContent.startsWith('ref: refs/heads/')) {
+        return headContent.replace('ref: refs/heads/', '');
+      }
+      // A bare commit hash means a detached HEAD.
+      if (headContent) return '(detached)';
+    } catch {
+      // HEAD still unreadable; report unknown rather than guessing.
+    }
+
+    return undefined;
   }
 
   /**

@@ -1,7 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 import type { ElectronAPI } from '../shared/types/electron-api';
-import type { LocalRepositoryInfo, ScanProgress, SyncProgress } from '../shared/types';
+import type {
+  LocalRepositoryInfo,
+  ScanProgress,
+  SyncProgress,
+  ScmProjectRepository,
+  CloneProgress,
+} from '../shared/types';
 
 const electronAPI: ElectronAPI = {
   auth: {
@@ -11,6 +17,13 @@ const electronAPI: ElectronAPI = {
     isOAuthConfigured: (provider) => ipcRenderer.invoke('auth:isOAuthConfigured', provider),
     getStatus: (provider) => ipcRenderer.invoke('auth:getStatus', provider),
     disconnect: (provider) => ipcRenderer.invoke('auth:disconnect', provider),
+  },
+
+  snyk: {
+    getStatus: () => ipcRenderer.invoke('snyk:getStatus'),
+    connect: (token, orgId) => ipcRenderer.invoke('snyk:connect', token, orgId),
+    disconnect: () => ipcRenderer.invoke('snyk:disconnect'),
+    getHealth: (options) => ipcRenderer.invoke('snyk:getHealth', options),
   },
 
   repositories: {
@@ -46,6 +59,17 @@ const electronAPI: ElectronAPI = {
     check: () => ipcRenderer.invoke('updates:check'),
   },
 
+  scmCompare: {
+    listProjectGroups: (provider) => ipcRenderer.invoke('scmCompare:listProjectGroups', provider),
+    listGroupRepositories: (provider, group) =>
+      ipcRenderer.invoke('scmCompare:listGroupRepositories', provider, group),
+    selectLocalFolder: () => ipcRenderer.invoke('scmCompare:selectLocalFolder'),
+    compare: (localFolder: string, repositories: ScmProjectRepository[]) =>
+      ipcRenderer.invoke('scmCompare:compare', localFolder, repositories),
+    cloneRepositories: (localFolder: string, repositories: ScmProjectRepository[]) =>
+      ipcRenderer.invoke('scmCompare:cloneRepositories', localFolder, repositories),
+  },
+
   onImportProgress: (callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, progress: unknown) => {
       callback(progress as Parameters<typeof callback>[0]);
@@ -72,6 +96,12 @@ const electronAPI: ElectronAPI = {
     const handler = () => callback();
     ipcRenderer.on('sync:trigger', handler);
     return () => ipcRenderer.removeListener('sync:trigger', handler);
+  },
+
+  onCloneProgress: (callback: (progress: CloneProgress) => void) => {
+    const handler = (_event: IpcRendererEvent, progress: CloneProgress) => callback(progress);
+    ipcRenderer.on('clone:progress', handler);
+    return () => ipcRenderer.removeListener('clone:progress', handler);
   },
 };
 

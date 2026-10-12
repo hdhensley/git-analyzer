@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import {
   getAuthService,
+  getSnykService,
   getGitService,
   getDatabase,
   getLocalGitService,
@@ -16,10 +17,13 @@ import type {
   SyncProgress,
   SyncResult,
   LocalRepositoryInfo,
+  ScmProjectRepository,
+  CloneProgress,
 } from '../shared/types';
 
 export function registerIpcHandlers(): void {
   const authService = getAuthService();
+  const snykService = getSnykService();
   const gitService = getGitService();
   const db = getDatabase();
 
@@ -51,6 +55,23 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('auth:disconnect', async (_event, provider: SCMProvider) => {
     return authService.disconnect(provider);
+  });
+
+  // Snyk handlers
+  ipcMain.handle('snyk:getStatus', async () => {
+    return snykService.getStatus();
+  });
+
+  ipcMain.handle('snyk:connect', async (_event, token: string, orgId?: string) => {
+    return snykService.connect(token, orgId);
+  });
+
+  ipcMain.handle('snyk:disconnect', async () => {
+    return snykService.disconnect();
+  });
+
+  ipcMain.handle('snyk:getHealth', async (_event, options?: { force?: boolean }) => {
+    return snykService.getHealth(options);
   });
 
   // Repository handlers
@@ -358,4 +379,63 @@ export function registerIpcHandlers(): void {
     // Delete repository from database (commits are deleted via CASCADE)
     db.deleteRepository(repoId);
   });
+
+  // SCM-to-local comparison handlers
+  // Project groups come from the local cache (imported/synced repositories) so
+  // the dropdown is instant and works offline. The per-project repo list used
+  // for the comparison is still fetched live (see listGroupRepositories).
+  ipcMain.handle('scmCompare:listProjectGroups', async (_event, provider: SCMProvider) => {
+    const imported = db.getImportedRepositories();
+    return gitService.listCachedScmProjectGroups(provider, imported);
+  });
+
+  ipcMain.handle(
+    'scmCompare:listGroupRepositories',
+    async (_event, provider: SCMProvider, group: string) => {
+      return gitService.listScmGroupRepositories(provider, group);
+    }
+  );
+
+  ipcMain.handle('scmCompare:selectLocalFolder', async () => {
+    return localGitService.selectFolder('Select Local Folder to Compare');
+  });
+
+  ipcMain.handle(
+    'scmCompare:compare',
+    async (_event, localFolder: string, repositories: ScmProjectRepository[]) => {
+      return localGitService.compareWithLocalFolder(localFolder, repositories);
+    }
+  );
+
+  ipcMain.handle(
+    'scmCompare:cloneRepositories',
+    async (event, localFolder: string, repositories: ScmProjectRepository[]) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+
+      for (const repo of repositories) {
+        const progress: CloneProgress = {
+          repositoryName: repo.name,
+          status: 'cloning',
+        };
+        window?.webContents.send('clone:progress', progress);
+
+        try {
+          // Clone over SSH using the user's existing SSH keys/agent. If SSH is
+          // not set up for this host, git fails and we surface the error.
+          const result = await localGitService.cloneRepository(
+            repo.sshCloneUrl,
+            localFolder,
+            repo.name
+          );
+          progress.status = 'complete';
+          progress.localPath = result.path;
+          window?.webContents.send('clone:progress', progress);
+        } catch (error) {
+          progress.status = 'error';
+          progress.error = error instanceof Error ? error.message : 'Unknown error';
+          window?.webContents.send('clone:progress', progress);
+        }
+      }
+    }
+  );
 }

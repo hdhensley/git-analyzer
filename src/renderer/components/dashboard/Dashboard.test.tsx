@@ -42,6 +42,7 @@ vi.mock('../widgets', () => ({
   CommitMessageAnalysisWidgetDefinition: {},
   RepoHealthWidgetDefinition: {},
   AuthorRepoMatrixWidgetDefinition: {},
+  DefaultBranchWidgetDefinition: {},
 }));
 
 describe('Dashboard', () => {
@@ -137,13 +138,13 @@ describe('Dashboard', () => {
           authenticate: vi.fn(),
           authenticateWithToken: vi.fn(),
           isOAuthConfigured: vi.fn().mockResolvedValue(false),
-          getStatus: vi.fn(),
+          getStatus: vi.fn().mockResolvedValue({ connected: false, provider: 'github' }),
           disconnect: vi.fn(),
         },
         repositories: {
           list: vi.fn(),
           import: vi.fn(),
-          getImported: vi.fn(),
+          getImported: vi.fn().mockResolvedValue([]),
           delete: vi.fn(),
           sync: vi.fn(),
         },
@@ -186,13 +187,13 @@ describe('Dashboard', () => {
           authenticate: vi.fn(),
           authenticateWithToken: vi.fn(),
           isOAuthConfigured: vi.fn().mockResolvedValue(false),
-          getStatus: vi.fn(),
+          getStatus: vi.fn().mockResolvedValue({ connected: false, provider: 'github' }),
           disconnect: vi.fn(),
         },
         repositories: {
           list: vi.fn(),
           import: vi.fn(),
-          getImported: vi.fn(),
+          getImported: vi.fn().mockResolvedValue([]),
           delete: vi.fn(),
           sync: vi.fn(),
         },

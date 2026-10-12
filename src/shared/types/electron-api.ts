@@ -16,6 +16,13 @@ import type {
   SyncProgress,
   SyncResult,
   UpdateCheckResult,
+  ScmProjectGroup,
+  ScmProjectRepository,
+  ScmLocalComparison,
+  CloneProgress,
+  SnykStatus,
+  SnykConnectResult,
+  SnykHealthResult,
 } from './index';
 
 export interface ElectronAPI {
@@ -30,6 +37,13 @@ export interface ElectronAPI {
     isOAuthConfigured: (provider: SCMProvider) => Promise<boolean>;
     getStatus: (provider: SCMProvider) => Promise<AuthStatus>;
     disconnect: (provider: SCMProvider) => Promise<void>;
+  };
+
+  snyk: {
+    getStatus: () => Promise<SnykStatus>;
+    connect: (token: string, orgId?: string) => Promise<SnykConnectResult>;
+    disconnect: () => Promise<void>;
+    getHealth: (options?: { force?: boolean }) => Promise<SnykHealthResult>;
   };
 
   repositories: {
@@ -64,10 +78,28 @@ export interface ElectronAPI {
     check: () => Promise<UpdateCheckResult>;
   };
 
+  scmCompare: {
+    listProjectGroups: (provider: SCMProvider) => Promise<ScmProjectGroup[]>;
+    listGroupRepositories: (
+      provider: SCMProvider,
+      group: string
+    ) => Promise<ScmProjectRepository[]>;
+    selectLocalFolder: () => Promise<string | null>;
+    compare: (
+      localFolder: string,
+      repositories: ScmProjectRepository[]
+    ) => Promise<ScmLocalComparison>;
+    cloneRepositories: (
+      localFolder: string,
+      repositories: ScmProjectRepository[]
+    ) => Promise<void>;
+  };
+
   onImportProgress: (callback: (progress: ImportProgress) => void) => () => void;
   onScanProgress: (callback: (progress: ScanProgress) => void) => () => void;
   onSyncProgress: (callback: (progress: SyncProgress) => void) => () => void;
   onSyncTrigger: (callback: () => void) => () => void;
+  onCloneProgress: (callback: (progress: CloneProgress) => void) => () => void;
 }
 
 declare global {

@@ -14,6 +14,31 @@
 .repo-health__row:hover { background: var(--bg-secondary, #f9fafb); }
 .repo-health__repo-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Two extra columns (Critical, High) when the Snyk integration is connected. */
+.repo-health__table--snyk .repo-health__header-row,
+.repo-health__table--snyk .repo-health__row {
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
+.repo-health__snyk-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.25rem 0.75rem; font-size: 0.75rem; color: var(--color-muted, #6b7280);
+}
+.repo-health__snyk-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-health__snyk-error-text { color: #dc2626; }
+
+.repo-health__snyk-refresh {
+  flex-shrink: 0; padding: 0.3rem 0.6rem; border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px; background: var(--bg-primary, #fff); color: var(--text-primary, #1f2937);
+  font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background-color 0.15s;
+}
+.repo-health__snyk-refresh:hover:not(:disabled) { background: var(--bg-hover, #f0f0f0); }
+.repo-health__snyk-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.repo-health__sev { font-weight: 500; color: var(--color-muted, #9ca3af); }
+.repo-health__sev--active.repo-health__sev--critical { color: #dc2626; font-weight: 700; }
+.repo-health__sev--active.repo-health__sev--high { color: #ea580c; font-weight: 700; }
+
 .repo-health__staleness { font-weight: 500; }
 .repo-health__staleness--fresh { color: #16a34a; }
 .repo-health__staleness--recent { color: #d97706; }

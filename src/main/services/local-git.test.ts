@@ -1,8 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { LocalGitService } from './local-git';
+import { LocalGitService, redactCloneUrl } from './local-git';
+import type { ScmProjectRepository } from '../../shared/types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+
+function makeScmRepo(name: string): ScmProjectRepository {
+  return {
+    provider: 'bitbucket',
+    name,
+    owner: 'team',
+    group: 'Microservices',
+    defaultBranch: 'main',
+    url: `https://bitbucket.org/team/${name}`,
+    httpsCloneUrl: `https://bitbucket.org/team/${name}.git`,
+    sshCloneUrl: `git@bitbucket.org:team/${name}.git`,
+  };
+}
 
 describe('LocalGitService', () => {
   let service: LocalGitService;
@@ -569,4 +583,133 @@ describe('LocalGitService', () => {
     });
   });
 
+  describe('compareWithLocalFolder', () => {
+    it('flags repositories present as subdirectories and the rest as missing', async () => {
+      await fs.mkdir(path.join(tempDir, 'payments-service'));
+      await fs.mkdir(path.join(tempDir, 'orders-service'));
+
+      const repos = [
+        makeScmRepo('payments-service'),
+        makeScmRepo('orders-service'),
+        makeScmRepo('inventory-service'),
+      ];
+
+      const result = await service.compareWithLocalFolder(tempDir, repos);
+
+      expect(result.localFolder).toBe(tempDir);
+      const byName = new Map(result.entries.map((e) => [e.repository.name, e]));
+      expect(byName.get('payments-service')?.present).toBe(true);
+      expect(byName.get('orders-service')?.present).toBe(true);
+      expect(byName.get('inventory-service')?.present).toBe(false);
+      expect(byName.get('inventory-service')?.localPath).toBeUndefined();
+    });
+
+    it('matches directory names case-insensitively', async () => {
+      await fs.mkdir(path.join(tempDir, 'Payments-Service'));
+
+      const result = await service.compareWithLocalFolder(tempDir, [
+        makeScmRepo('payments-service'),
+      ]);
+
+      expect(result.entries[0].present).toBe(true);
+      expect(result.entries[0].localPath).toBe(path.join(tempDir, 'Payments-Service'));
+    });
+
+    it('reports whether a present directory is itself a git repo', async () => {
+      const gitRepo = path.join(tempDir, 'with-git');
+      await fs.mkdir(gitRepo);
+      await fs.mkdir(path.join(gitRepo, '.git'));
+      await fs.mkdir(path.join(tempDir, 'no-git'));
+
+      const result = await service.compareWithLocalFolder(tempDir, [
+        makeScmRepo('with-git'),
+        makeScmRepo('no-git'),
+      ]);
+
+      const byName = new Map(result.entries.map((e) => [e.repository.name, e]));
+      expect(byName.get('with-git')?.isGitRepo).toBe(true);
+      expect(byName.get('no-git')?.isGitRepo).toBe(false);
+    });
+
+    it('reports the local checked-out branch for a present git repo', async () => {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const repoPath = path.join(tempDir, 'payments-service');
+      await fs.mkdir(repoPath);
+      await execAsync('git init', { cwd: repoPath });
+      await execAsync('git config user.email "t@t.com"', { cwd: repoPath });
+      await execAsync('git config user.name "T"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, 'README.md'), '# x');
+      await execAsync('git add .', { cwd: repoPath });
+      await execAsync('git commit -m "init"', { cwd: repoPath });
+      await execAsync('git checkout -b develop', { cwd: repoPath });
+
+      const result = await service.compareWithLocalFolder(tempDir, [
+        makeScmRepo('payments-service'),
+      ]);
+
+      expect(result.entries[0].present).toBe(true);
+      expect(result.entries[0].isGitRepo).toBe(true);
+      expect(result.entries[0].localBranch).toBe('develop');
+    });
+
+    it('resolves the local branch when .git is a gitdir pointer file', async () => {
+      // Simulate a worktree/submodule layout: the repo dir has a ".git" FILE
+      // pointing at a real git directory elsewhere.
+      const repoPath = path.join(tempDir, 'payments-service');
+      await fs.mkdir(repoPath);
+      const realGitDir = path.join(tempDir, 'real-gitdir');
+      await fs.mkdir(realGitDir);
+      await fs.writeFile(path.join(realGitDir, 'HEAD'), 'ref: refs/heads/develop\n');
+      await fs.writeFile(path.join(repoPath, '.git'), `gitdir: ${realGitDir}\n`);
+
+      const result = await service.compareWithLocalFolder(tempDir, [
+        makeScmRepo('payments-service'),
+      ]);
+
+      expect(result.entries[0].present).toBe(true);
+      expect(result.entries[0].isGitRepo).toBe(true);
+      expect(result.entries[0].localBranch).toBe('develop');
+    });
+
+    it('leaves localBranch undefined for a present non-git directory', async () => {
+      await fs.mkdir(path.join(tempDir, 'orders-service'));
+
+      const result = await service.compareWithLocalFolder(tempDir, [
+        makeScmRepo('orders-service'),
+      ]);
+
+      expect(result.entries[0].present).toBe(true);
+      expect(result.entries[0].isGitRepo).toBe(false);
+      expect(result.entries[0].localBranch).toBeUndefined();
+    });
+
+    it('throws when the local folder does not exist', async () => {
+      await expect(
+        service.compareWithLocalFolder(path.join(tempDir, 'nope'), [makeScmRepo('a')])
+      ).rejects.toThrow('Local folder not found');
+    });
+  });
+});
+
+describe('redactCloneUrl', () => {
+  it('removes embedded credentials from an https URL', () => {
+    const authed = 'https://user%40example.com:token123@bitbucket.org/team/repo.git';
+    expect(redactCloneUrl(authed)).toBe('https://***@bitbucket.org/team/repo.git');
+  });
+
+  it('redacts credentials embedded within a larger error message', () => {
+    const message =
+      'fatal: unable to access https://me:supersecret@bitbucket.org/team/repo.git/: 403';
+    const redacted = redactCloneUrl(message);
+    expect(redacted).not.toContain('supersecret');
+    expect(redacted).toContain('https://***@bitbucket.org/team/repo.git');
+  });
+
+  it('leaves strings without credentials untouched', () => {
+    const message = 'fatal: repository not found';
+    expect(redactCloneUrl(message)).toBe(message);
+  });
 });

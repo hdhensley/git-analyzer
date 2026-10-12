@@ -223,6 +223,118 @@ export class GitService {
     };
   }
 
+  /**
+   * Lists every repository the provider exposes as clone-ready SCM repositories,
+   * paging through all results. Provider-agnostic: works for GitHub and
+   * Bitbucket by reusing the existing listRepositories pagination.
+   */
+  async listAllScmRepositories(
+    provider: SCMProvider
+  ): Promise<import('../../shared/types').ScmProjectRepository[]> {
+    const all: import('../../shared/types').ScmProjectRepository[] = [];
+    let page: number | undefined = 1;
+
+    // GitHub pages numerically; Bitbucket returns everything in one call
+    // (hasNextPage=false). Loop on nextPage to cover both.
+    while (page !== undefined) {
+      const result = await this.listRepositories(provider, page);
+      for (const repo of result.repositories) {
+        all.push(this.toScmProjectRepository(repo, provider));
+      }
+      page = result.hasNextPage ? result.nextPage : undefined;
+    }
+
+    return all;
+  }
+
+  /**
+   * Groups a provider's repositories by their project grouping (parentFolder:
+   * Bitbucket project name / GitHub owner), returning the distinct groups with
+   * their repository counts. Fetches the repository list live from the API.
+   */
+  async listScmProjectGroups(
+    provider: SCMProvider
+  ): Promise<import('../../shared/types').ScmProjectGroup[]> {
+    const repos = await this.listAllScmRepositories(provider);
+    return this.groupRepositories(provider, repos.map((r) => r.group));
+  }
+
+  /**
+   * Builds the distinct project groups for a provider from the locally cached
+   * (imported/synced) repositories, grouping by parentFolder. No network call,
+   * so this is instant and works offline. Note: only reflects repositories that
+   * have been imported, which may be a subset of the provider's full set.
+   */
+  listCachedScmProjectGroups(
+    provider: SCMProvider,
+    importedRepositories: Array<{ provider: string; parentFolder?: string }>
+  ): import('../../shared/types').ScmProjectGroup[] {
+    const groupNames = importedRepositories
+      .filter((r) => r.provider === provider)
+      .map((r) => r.parentFolder);
+    return this.groupRepositories(provider, groupNames);
+  }
+
+  private groupRepositories(
+    provider: SCMProvider,
+    groupNames: Array<string | undefined>
+  ): import('../../shared/types').ScmProjectGroup[] {
+    const counts = new Map<string, number>();
+    for (const name of groupNames) {
+      const key = name || '(ungrouped)';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, repositoryCount]) => ({ provider, name, repositoryCount }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Lists the repositories in a specific project group for a provider. A
+   * group of '(ungrouped)' matches repositories with no parentFolder.
+   */
+  async listScmGroupRepositories(
+    provider: SCMProvider,
+    group: string
+  ): Promise<import('../../shared/types').ScmProjectRepository[]> {
+    const repos = await this.listAllScmRepositories(provider);
+    const normalized = group === '(ungrouped)' ? undefined : group;
+    return repos
+      .filter((r) => (r.group || undefined) === normalized)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Maps an internal Repository to the clone-ready ScmProjectRepository shape,
+   * deriving an https clone URL from the browser URL.
+   */
+  private toScmProjectRepository(
+    repo: Repository,
+    provider: SCMProvider
+  ): import('../../shared/types').ScmProjectRepository {
+    let httpsCloneUrl: string;
+    let sshCloneUrl: string;
+    if (provider === 'github') {
+      httpsCloneUrl = repo.url.endsWith('.git') ? repo.url : `${repo.url}.git`;
+      sshCloneUrl = `git@github.com:${repo.owner}/${repo.name}.git`;
+    } else {
+      // Bitbucket browser URL is https://bitbucket.org/{workspace}/{slug}
+      httpsCloneUrl = `https://bitbucket.org/${repo.owner}/${repo.name}.git`;
+      sshCloneUrl = `git@bitbucket.org:${repo.owner}/${repo.name}.git`;
+    }
+
+    return {
+      provider,
+      name: repo.name,
+      owner: repo.owner,
+      group: repo.parentFolder,
+      defaultBranch: repo.defaultBranch,
+      url: repo.url,
+      httpsCloneUrl,
+      sshCloneUrl,
+    };
+  }
+
   async fetchGitLog(
     repo: Repository,
     onProgress?: FetchProgressCallback
