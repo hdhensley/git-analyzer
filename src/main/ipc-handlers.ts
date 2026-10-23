@@ -175,6 +175,15 @@ export function registerIpcHandlers(): void {
             continue;
           }
           db.updateRepositoryAvailability(repo.id, true);
+          // Refresh the default branch in case it changed since import.
+          try {
+            const detected = await localGit.detectDefaultBranch(repo.localPath);
+            if (detected && detected !== repo.defaultBranch) {
+              db.updateRepositoryDefaultBranch(repo.id, detected);
+            }
+          } catch {
+            // Non-fatal: keep the stored default branch.
+          }
           const commits = await localGit.fetchCommits(repo.localPath, repo.lastSyncAt);
           if (commits.length > 0) {
             db.saveCommits(repo.id, commits);
@@ -183,6 +192,15 @@ export function registerIpcHandlers(): void {
         } else {
           // Cloud repo (github/bitbucket)
           try {
+            // Refresh the default branch in case it changed on the provider
+            // since import. Non-fatal if it can't be fetched.
+            const latestBranch = await gitService.fetchDefaultBranch(repo);
+            if (latestBranch && latestBranch !== repo.defaultBranch) {
+              db.updateRepositoryDefaultBranch(repo.id, latestBranch);
+              // Keep the in-memory repo aligned so this cycle's commit fetch
+              // uses the refreshed branch.
+              repo.defaultBranch = latestBranch;
+            }
             const existingCommitCount = db.getCommitCount(repo.id);
             const fetchResult =
               existingCommitCount === 0
@@ -378,6 +396,18 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('localRepositories:remove', async (_event, repoId: string) => {
     // Delete repository from database (commits are deleted via CASCADE)
     db.deleteRepository(repoId);
+  });
+
+  ipcMain.handle('localRepositories:branchDivergence', async (_event, repoId: string) => {
+    const repo = db.getImportedRepositories().find((r) => r.id === repoId);
+    if (!repo || repo.provider !== 'local' || !repo.localPath) {
+      return null;
+    }
+    const pathExists = await localGitService.validateRepositoryPath(repo.localPath);
+    if (!pathExists) {
+      return null;
+    }
+    return localGitService.getBranchDivergence(repo.localPath);
   });
 
   // SCM-to-local comparison handlers

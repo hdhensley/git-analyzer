@@ -3,7 +3,7 @@ import { useElectronAPI } from '../../hooks';
 import { AuthStatus, SnykConnection } from '../auth';
 import { RepositoryList, ImportProgress, LocalRepositoryBrowser, ScmLocalCompare } from '../repositories';
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
-import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition, DefaultBranchWidgetDefinition } from '../widgets';
+import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition } from '../widgets';
 import type { Repository, Commit, DateRange, DateRangePreset, UserPreferences } from '../../../shared/types';
 import type { AuthorGrouping } from '../widgets';
 import './Dashboard.css';
@@ -20,10 +20,9 @@ WidgetRegistry.register(BusFactorWidgetDefinition);
 WidgetRegistry.register(CommitMessageAnalysisWidgetDefinition);
 WidgetRegistry.register(RepoHealthWidgetDefinition);
 WidgetRegistry.register(AuthorRepoMatrixWidgetDefinition);
-WidgetRegistry.register(DefaultBranchWidgetDefinition);
 
 type View = 'connect' | 'import' | 'importing' | 'analytics' | 'compare';
-type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'insights';
+type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'commit-messages' | 'insights';
 type ImportSource = null | 'local' | 'github' | 'bitbucket';
 
 export function Dashboard() {
@@ -57,13 +56,25 @@ export function Dashboard() {
   const [syncProcessedRepos, setSyncProcessedRepos] = useState(0);
   const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
-  const lastSyncRef = useRef<number>(0);
+  // Persist the last-sync time across restarts so launching the app doesn't
+  // trigger an immediate sync when one ran recently.
+  const LAST_SYNC_STORAGE_KEY = 'gitAnalytics.lastSyncAt';
+  const readPersistedLastSync = (): number => {
+    try {
+      const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+      const parsed = raw ? parseInt(raw, 10) : 0;
+      return Number.isFinite(parsed) ? parsed : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const lastSyncRef = useRef<number>(readPersistedLastSync());
   const syncingRef = useRef(false);
   // Mirror of snykConnected so the background sync (whose closures are captured
   // at mount) always sees the live connection state.
   const snykConnectedRef = useRef(false);
 
-  const SYNC_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+  const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
   const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
   // Load preferences on mount (only when api is available)
@@ -254,6 +265,11 @@ export function Dashboard() {
       const result = await api.repositories.sync();
       const now = new Date();
       lastSyncRef.current = now.getTime();
+      try {
+        localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(now.getTime()));
+      } catch {
+        // Ignore storage failures; the in-memory cooldown still applies.
+      }
       const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       if (result.totalNewCommits > 0) {
         setSyncStatus(`Synced ${result.totalNewCommits} new commit${result.totalNewCommits !== 1 ? 's' : ''} from ${result.syncedRepos} repo${result.syncedRepos !== 1 ? 's' : ''}`);
@@ -605,6 +621,13 @@ export function Dashboard() {
                 </button>
                 <button
                   type="button"
+                  className={`dashboard__tab ${analyticsTab === 'commit-messages' ? 'dashboard__tab--active' : ''}`}
+                  onClick={() => setAnalyticsTab('commit-messages')}
+                >
+                  Commit Messages
+                </button>
+                <button
+                  type="button"
                   className={`dashboard__tab ${analyticsTab === 'insights' ? 'dashboard__tab--active' : ''}`}
                   onClick={() => setAnalyticsTab('insights')}
                 >
@@ -687,16 +710,6 @@ export function Dashboard() {
                 {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-user' && (
                   <>
                     <ChartWidget
-                      key="message-summary"
-                      definition={MessageSummaryWidgetDefinition}
-                      commits={commits}
-                      dateRange={dateRange}
-                      selectedRepoIds={selectedRepoIds}
-                      repositories={selectedRepositories}
-                      authorGrouping={authorGrouping}
-                      onError={handleWidgetError}
-                    />
-                    <ChartWidget
                       key="streaks"
                       definition={StreakWidgetDefinition}
                       commits={commits}
@@ -722,16 +735,6 @@ export function Dashboard() {
                 {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-repository' && (
                   <>
                     <ChartWidget
-                      key="repository-commit-summary"
-                      definition={RepositoryCommitSummaryWidgetDefinition}
-                      commits={commits}
-                      dateRange={dateRange}
-                      selectedRepoIds={selectedRepoIds}
-                      repositories={selectedRepositories}
-                      authorGrouping={authorGrouping}
-                      onError={handleWidgetError}
-                    />
-                    <ChartWidget
                       key="repo-health"
                       definition={RepoHealthWidgetDefinition}
                       commits={commits}
@@ -741,9 +744,24 @@ export function Dashboard() {
                       authorGrouping={authorGrouping}
                       onError={handleWidgetError}
                     />
+                  </>
+                )}
+
+                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'commit-messages' && (
+                  <>
                     <ChartWidget
-                      key="default-branch-overview"
-                      definition={DefaultBranchWidgetDefinition}
+                      key="message-summary"
+                      definition={MessageSummaryWidgetDefinition}
+                      commits={commits}
+                      dateRange={dateRange}
+                      selectedRepoIds={selectedRepoIds}
+                      repositories={selectedRepositories}
+                      authorGrouping={authorGrouping}
+                      onError={handleWidgetError}
+                    />
+                    <ChartWidget
+                      key="repository-commit-summary"
+                      definition={RepositoryCommitSummaryWidgetDefinition}
                       commits={commits}
                       dateRange={dateRange}
                       selectedRepoIds={selectedRepoIds}

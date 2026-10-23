@@ -245,6 +245,11 @@ export class DatabaseService {
     stmt.run(repoId);
   }
 
+  updateRepositoryDefaultBranch(repoId: string, defaultBranch: string): void {
+    const stmt = this.db.prepare(`UPDATE repositories SET default_branch = ? WHERE id = ?`);
+    stmt.run(defaultBranch, repoId);
+  }
+
   updateRepositoryAvailability(repoId: string, isAvailable: boolean): void {
     const stmt = this.db.prepare(`UPDATE repositories SET is_available = ? WHERE id = ?`);
     stmt.run(isAvailable ? 1 : 0, repoId);

@@ -224,6 +224,45 @@ export class GitService {
   }
 
   /**
+   * Fetches the CURRENT default branch for a single cloud repository from the
+   * provider, so a default-branch change made on GitHub/Bitbucket after import
+   * can be picked up during sync. Returns null if it can't be determined (the
+   * caller then leaves the stored value unchanged).
+   */
+  async fetchDefaultBranch(repo: Repository): Promise<string | null> {
+    const provider = repo.provider as SCMProvider;
+    if (provider !== 'github' && provider !== 'bitbucket') {
+      return null;
+    }
+    const authHeader = await this.authService.getAuthHeader(provider);
+    if (!authHeader) {
+      return null;
+    }
+
+    try {
+      if (provider === 'github') {
+        const url = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
+        const response = await fetchWithRetry(url, {
+          headers: { Authorization: authHeader, Accept: 'application/vnd.github.v3+json' },
+        });
+        if (!response.ok) return null;
+        const data = (await response.json()) as { default_branch?: string };
+        return data.default_branch || null;
+      } else {
+        const url = `https://api.bitbucket.org/2.0/repositories/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
+        const response = await fetchWithRetry(url, {
+          headers: { Authorization: authHeader, Accept: 'application/json' },
+        });
+        if (!response.ok) return null;
+        const data = (await response.json()) as { mainbranch?: { name?: string } };
+        return data.mainbranch?.name || null;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Lists every repository the provider exposes as clone-ready SCM repositories,
    * paging through all results. Provider-agnostic: works for GitHub and
    * Bitbucket by reusing the existing listRepositories pagination.

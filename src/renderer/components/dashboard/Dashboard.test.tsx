@@ -42,7 +42,6 @@ vi.mock('../widgets', () => ({
   CommitMessageAnalysisWidgetDefinition: {},
   RepoHealthWidgetDefinition: {},
   AuthorRepoMatrixWidgetDefinition: {},
-  DefaultBranchWidgetDefinition: {},
 }));
 
 describe('Dashboard', () => {

@@ -140,6 +140,7 @@ export function ScmLocalCompare({
         setComparison({
           localFolder: '',
           entries: repos.map((repository) => ({ repository, present: false })),
+          localOnly: [],
         });
       } catch (err) {
         setPhase('ready');
@@ -170,6 +171,11 @@ export function ScmLocalCompare({
 
   const missingEntries = useMemo(
     () => (compared ? (comparison?.entries ?? []).filter((e) => !e.present) : []),
+    [comparison, compared]
+  );
+
+  const localOnlyEntries = useMemo(
+    () => (compared ? (comparison?.localOnly ?? []) : []),
     [comparison, compared]
   );
 
@@ -339,6 +345,11 @@ export function ScmLocalCompare({
                   {missingEntries.length} missing
                 </span>
                 <span className="scm-compare__summary-item">{repositories.length} total</span>
+                {localOnlyEntries.length > 0 && (
+                  <span className="scm-compare__summary-item scm-compare__summary-item--local-only">
+                    {localOnlyEntries.length} local-only
+                  </span>
+                )}
               </>
             ) : (
               <span className="scm-compare__summary-item">
@@ -440,6 +451,51 @@ export function ScmLocalCompare({
               );
             })}
           </div>
+
+          {compared && localOnlyEntries.length > 0 && (
+            <div className="scm-compare__local-only">
+              <h4 className="scm-compare__local-only-title">
+                In this folder but not in the project ({localOnlyEntries.length})
+              </h4>
+              <p className="scm-compare__local-only-desc">
+                These local directories don&apos;t match any repository in the selected project.
+              </p>
+              <div className="scm-compare__list">
+                {localOnlyEntries.map((entry) => (
+                  <div
+                    key={entry.localPath}
+                    className="scm-compare__row scm-compare__row--local-only"
+                  >
+                    <div className="scm-compare__row-main">
+                      <span className="scm-compare__row-name">{entry.name}</span>
+                      <span className="scm-compare__row-branches">
+                        {entry.isGitRepo ? (
+                          <span
+                            className="scm-compare__branch"
+                            title="Branch currently checked out in this local directory"
+                          >
+                            <span className="scm-compare__branch-label">Local:</span>{' '}
+                            <span className="scm-compare__branch-value">
+                              {entry.localBranch ?? 'unknown'}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="scm-compare__branch">
+                            <span className="scm-compare__branch-value">Not a git repository</span>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="scm-compare__row-status">
+                      <span className="scm-compare__badge scm-compare__badge--local-only">
+                        Local only
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

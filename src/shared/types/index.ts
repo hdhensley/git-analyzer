@@ -219,6 +219,17 @@ export interface DateRange {
   end: Date;
 }
 
+// Branch divergence (local repositories only)
+
+// How far a comparison branch (e.g. develop) is ahead of / behind a base
+// branch (e.g. main) in a local git repository.
+export interface BranchDivergence {
+  base: string; // Base branch name that was resolved (e.g. "main")
+  compare: string; // Comparison branch name that was resolved (e.g. "develop")
+  ahead: number; // Commits on `compare` not on `base`
+  behind: number; // Commits on `base` not on `compare`
+}
+
 // Local Repository types
 
 // Information about a discovered local repository before import
@@ -281,9 +292,20 @@ export interface ScmLocalComparisonEntry {
   localBranch?: string; // Currently checked-out branch of the local clone, when it is a git repo
 }
 
+// A local subdirectory that exists in the compared folder but does not match
+// any repository in the selected SCM project group.
+export interface ScmLocalOnlyEntry {
+  name: string; // Subdirectory name
+  localPath: string; // Absolute path of the local directory
+  isGitRepo: boolean; // Whether the directory is itself a git repo
+  localBranch?: string; // Current branch, when it is a git repo
+}
+
 export interface ScmLocalComparison {
   localFolder: string;
   entries: ScmLocalComparisonEntry[];
+  // Local directories present in the folder but absent from the SCM project.
+  localOnly: ScmLocalOnlyEntry[];
 }
 
 // Progress during a clone operation (one event per repository).

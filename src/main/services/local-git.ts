@@ -14,6 +14,7 @@ import type {
   ScmProjectRepository,
   ScmLocalComparison,
   ScmLocalComparisonEntry,
+  ScmLocalOnlyEntry,
 } from '../../shared/types';
 
 const execAsync = promisify(exec);
@@ -262,6 +263,25 @@ export class LocalGitService {
       byLowerName.set(name.toLowerCase(), name);
     }
 
+    // Track which local subdirectories were matched by an SCM repo so the
+    // unmatched ones can be reported as local-only below.
+    const matchedLowerNames = new Set<string>();
+
+    const describeLocalDir = async (
+      name: string
+    ): Promise<{ localPath: string; isGitRepo: boolean; localBranch?: string }> => {
+      const localPath = path.join(localFolder, name);
+      let isGitRepo = false;
+      try {
+        const gitStat = await stat(path.join(localPath, '.git'));
+        isGitRepo = gitStat.isDirectory() || gitStat.isFile();
+      } catch {
+        isGitRepo = false;
+      }
+      const localBranch = isGitRepo ? await this.getCurrentBranch(localPath) : undefined;
+      return { localPath, isGitRepo, localBranch };
+    };
+
     const entries: ScmLocalComparisonEntry[] = [];
     for (const repository of repositories) {
       const matchName = byLowerName.get(repository.name.toLowerCase());
@@ -270,21 +290,21 @@ export class LocalGitService {
         continue;
       }
 
-      const localPath = path.join(localFolder, matchName);
-      let isGitRepo = false;
-      try {
-        const gitStat = await stat(path.join(localPath, '.git'));
-        isGitRepo = gitStat.isDirectory() || gitStat.isFile();
-      } catch {
-        isGitRepo = false;
-      }
-
-      const localBranch = isGitRepo ? await this.getCurrentBranch(localPath) : undefined;
-
+      matchedLowerNames.add(matchName.toLowerCase());
+      const { localPath, isGitRepo, localBranch } = await describeLocalDir(matchName);
       entries.push({ repository, present: true, localPath, isGitRepo, localBranch });
     }
 
-    return { localFolder, entries };
+    // Local directories that exist but match no SCM repo in the project.
+    const localOnly: ScmLocalOnlyEntry[] = [];
+    for (const name of subdirs) {
+      if (matchedLowerNames.has(name.toLowerCase())) continue;
+      const { localPath, isGitRepo, localBranch } = await describeLocalDir(name);
+      localOnly.push({ name, localPath, isGitRepo, localBranch });
+    }
+    localOnly.sort((a, b) => a.name.localeCompare(b.name));
+
+    return { localFolder, entries, localOnly };
   }
 
   /**
@@ -379,6 +399,83 @@ export class LocalGitService {
     }
 
     return undefined;
+  }
+
+  /**
+   * Runs a git command in a repo with an augmented PATH so a packaged macOS
+   * .app (launched with a minimal PATH) can still find git.
+   */
+  private async git(repoPath: string, args: string): Promise<string> {
+    const { stdout } = await execAsync(`git ${args}`, {
+      cwd: repoPath,
+      env: {
+        ...process.env,
+        PATH: `${process.env.PATH ?? ''}:/opt/homebrew/bin:/usr/local/bin:/usr/bin`,
+      },
+    });
+    return stdout.trim();
+  }
+
+  /**
+   * Resolves the first branch name that actually exists in the repo, trying a
+   * list of candidates against both local and remote-tracking refs. Returns the
+   * ref to use in rev-list (preferring the local branch, else origin/<name>),
+   * or undefined if none of the candidates exist.
+   */
+  private async resolveBranchRef(
+    repoPath: string,
+    candidates: string[]
+  ): Promise<string | undefined> {
+    for (const name of candidates) {
+      try {
+        await this.git(repoPath, `rev-parse --verify --quiet refs/heads/${name}`);
+        return name;
+      } catch {
+        // Not a local branch; try the remote-tracking ref next.
+      }
+      try {
+        await this.git(repoPath, `rev-parse --verify --quiet refs/remotes/origin/${name}`);
+        return `origin/${name}`;
+      } catch {
+        // Neither local nor remote; try the next candidate.
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Computes how far a comparison branch (develop) is ahead of / behind a base
+   * branch (main) for a LOCAL repository. Uses whatever refs exist in the local
+   * clone (no network fetch), so results reflect the last pull. Returns null if
+   * either side cannot be resolved (e.g. the repo has no develop branch).
+   *
+   * Note: local repositories only — cloud (GitHub/Bitbucket) comparison is not
+   * supported yet.
+   */
+  async getBranchDivergence(repoPath: string): Promise<import('../../shared/types').BranchDivergence | null> {
+    const base = await this.resolveBranchRef(repoPath, ['main', 'master']);
+    const compare = await this.resolveBranchRef(repoPath, ['develop', 'dev']);
+    if (!base || !compare) {
+      return null;
+    }
+    try {
+      // `--left-right --count A...B` prints "<left>\t<right>": left = commits on
+      // base not on compare (behind), right = commits on compare not on base (ahead).
+      const out = await this.git(repoPath, `rev-list --left-right --count ${base}...${compare}`);
+      const parts = out.split(/\s+/).map((n) => parseInt(n, 10));
+      if (parts.length < 2 || parts.some((n) => Number.isNaN(n))) {
+        return null;
+      }
+      const [behind, ahead] = parts;
+      return {
+        base: base.replace(/^origin\//, ''),
+        compare: compare.replace(/^origin\//, ''),
+        ahead,
+        behind,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**

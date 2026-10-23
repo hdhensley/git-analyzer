@@ -23,6 +23,7 @@ import type {
   SnykStatus,
   SnykConnectResult,
   SnykHealthResult,
+  BranchDivergence,
 } from './index';
 
 export interface ElectronAPI {
@@ -72,6 +73,7 @@ export interface ElectronAPI {
     refresh: (repoId: string) => Promise<void>;
     remove: (repoId: string) => Promise<void>;
     checkGit: () => Promise<boolean>;
+    branchDivergence: (repoId: string) => Promise<BranchDivergence | null>;
   };
 
   updates: {

@@ -306,3 +306,35 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Local-only: directories present in the folder but absent from the project. */
+.scm-compare__summary-item--local-only {
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.scm-compare__local-only {
+  margin-top: 1.25rem;
+}
+
+.scm-compare__local-only-title {
+  margin: 0 0 0.15rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.scm-compare__local-only-desc {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+}
+
+.scm-compare__row--local-only {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.scm-compare__badge--local-only {
+  background: #eef2ff;
+  color: #4f46e5;
+}

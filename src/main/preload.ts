@@ -53,6 +53,8 @@ const electronAPI: ElectronAPI = {
     refresh: (repoId: string) => ipcRenderer.invoke('localRepositories:refresh', repoId),
     remove: (repoId: string) => ipcRenderer.invoke('localRepositories:remove', repoId),
     checkGit: () => ipcRenderer.invoke('localRepositories:checkGit'),
+    branchDivergence: (repoId: string) =>
+      ipcRenderer.invoke('localRepositories:branchDivergence', repoId),
   },
 
   updates: {
