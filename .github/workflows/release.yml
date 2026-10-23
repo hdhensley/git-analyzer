@@ -32,7 +32,7 @@ jobs:
         include:
           - os: macos-latest
             script: package:mac
-          - os: windows-latest
+          - os: windows-2022
             script: package:win
           - os: ubuntu-latest
             script: package:linux
@@ -46,6 +46,19 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      # Give the Windows native rebuild (better-sqlite3, keytar) a working,
+      # discoverable MSVC toolchain. The windows runner image ships a Visual
+      # Studio too new for the node-gyp that electron-builder resolves, so VS
+      # detection returns "undefined" and the source compile fails. Install a
+      # current node-gyp and point it explicitly at VS 2022.
+      - name: Configure native build toolchain (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: |
+          npm install -g node-gyp@latest
+          echo "npm_config_msvs_version=2022" >> "$GITHUB_ENV"
+          echo "GYP_MSVS_VERSION=2022" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
