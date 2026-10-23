@@ -72,28 +72,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Import signing certificate
-        if: matrix.os == 'macos-latest'
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
-          security set-keychain-settings -lut 21600 build.keychain-db
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
-
-          security import certificate.p12 -k build.keychain-db -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain-db
-
-          security list-keychains -d user -s build.keychain-db $(security list-keychains -d user | tr -d '"')
-
-          echo "=== Signing identities ==="
-          security find-identity -v -p codesigning
-
-          rm certificate.p12
+      # electron-builder manages macOS signing itself from CSC_LINK /
+      # CSC_KEY_PASSWORD in the "Package macOS" step below: it imports the
+      # .p12 into its own temporary keychain and signs. A manual
+      # create-keychain / import / set-key-partition-list step here conflicts
+      # with that flow (electron-builder ignores the manual keychain and its
+      # own set-key-partition-list fails with "SecKeychainUnlock ... not
+      # correct"), so signing is left entirely to electron-builder.
 
       - name: Package
         if: matrix.os != 'macos-latest'
