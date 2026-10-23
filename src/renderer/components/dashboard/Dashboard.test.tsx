@@ -12,6 +12,7 @@ vi.mock('../auth', () => ({
   AuthStatus: ({ provider }: { provider: string }) => (
     <div data-testid={`auth-status-${provider}`}>AuthStatus Mock - {provider}</div>
   ),
+  SnykConnection: () => <div data-testid="snyk-connection">SnykConnection Mock</div>,
 }));
 
 vi.mock('../repositories', () => ({
@@ -140,6 +141,12 @@ describe('Dashboard', () => {
           getStatus: vi.fn().mockResolvedValue({ connected: false, provider: 'github' }),
           disconnect: vi.fn(),
         },
+        snyk: {
+          getStatus: vi.fn().mockResolvedValue({ connected: false }),
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          getHealth: vi.fn(),
+        },
         repositories: {
           list: vi.fn(),
           import: vi.fn(),
@@ -163,11 +170,23 @@ describe('Dashboard', () => {
           refresh: vi.fn(),
           remove: vi.fn(),
           checkGit: vi.fn(),
+          branchDivergence: vi.fn().mockResolvedValue(null),
+        },
+        updates: {
+          check: vi.fn(),
+        },
+        scmCompare: {
+          listProjectGroups: vi.fn(),
+          listGroupRepositories: vi.fn(),
+          selectLocalFolder: vi.fn(),
+          compare: vi.fn(),
+          cloneRepositories: vi.fn(),
         },
         onImportProgress: vi.fn(),
         onScanProgress: vi.fn(() => () => {}),
         onSyncProgress: vi.fn(() => () => {}),
         onSyncTrigger: vi.fn(() => () => {}),
+        onCloneProgress: vi.fn(() => () => {}),
       };
 
       (globalThis as any).window.electronAPI = mockAPI;
@@ -188,6 +207,12 @@ describe('Dashboard', () => {
           isOAuthConfigured: vi.fn().mockResolvedValue(false),
           getStatus: vi.fn().mockResolvedValue({ connected: false, provider: 'github' }),
           disconnect: vi.fn(),
+        },
+        snyk: {
+          getStatus: vi.fn().mockResolvedValue({ connected: false }),
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          getHealth: vi.fn(),
         },
         repositories: {
           list: vi.fn(),
@@ -216,11 +241,23 @@ describe('Dashboard', () => {
           refresh: vi.fn(),
           remove: vi.fn(),
           checkGit: vi.fn(),
+          branchDivergence: vi.fn().mockResolvedValue(null),
+        },
+        updates: {
+          check: vi.fn(),
+        },
+        scmCompare: {
+          listProjectGroups: vi.fn(),
+          listGroupRepositories: vi.fn(),
+          selectLocalFolder: vi.fn(),
+          compare: vi.fn(),
+          cloneRepositories: vi.fn(),
         },
         onImportProgress: vi.fn(),
         onScanProgress: vi.fn(() => () => {}),
         onSyncProgress: vi.fn(() => () => {}),
         onSyncTrigger: vi.fn(() => () => {}),
+        onCloneProgress: vi.fn(() => () => {}),
       };
 
       (globalThis as any).window.electronAPI = mockAPI;
