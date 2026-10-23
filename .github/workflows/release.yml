@@ -72,13 +72,31 @@ jobs:
       - name: Build
         run: npm run build
 
-      # electron-builder manages macOS signing itself from CSC_LINK /
-      # CSC_KEY_PASSWORD in the "Package macOS" step below: it imports the
-      # .p12 into its own temporary keychain and signs. A manual
-      # create-keychain / import / set-key-partition-list step here conflicts
-      # with that flow (electron-builder ignores the manual keychain and its
-      # own set-key-partition-list fails with "SecKeychainUnlock ... not
-      # correct"), so signing is left entirely to electron-builder.
+      - name: Import signing certificate
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+
+          # Create and configure the keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+          security set-keychain-settings -lut 21600 build.keychain-db
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+
+          # Import the certificate
+          security import certificate.p12 -k build.keychain-db -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain-db
+
+          # Add to search list so codesign/electron-builder can find it
+          security list-keychains -d user -s build.keychain-db $(security list-keychains -d user | tr -d '"')
+
+          echo "=== Signing identities ==="
+          security find-identity -v -p codesigning
+
+          rm certificate.p12
 
       - name: Package
         if: matrix.os != 'macos-latest'
@@ -86,13 +104,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Sign against the keychain imported above. Do NOT pass CSC_LINK /
+      # CSC_KEY_PASSWORD here: those make electron-builder create its own
+      # temporary keychain and run set-key-partition-list, which fails with
+      # "SecKeychainUnlock ... not correct". CSC_KEYCHAIN points it at our
+      # already-prepared keychain and auto-discovery finds the identity,
+      # matching the signing flow proven in the pcac/aws-ui apps.
       - name: Package macOS (with signing)
         if: matrix.os == 'macos-latest'
         run: npm run package:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          CSC_KEYCHAIN: build.keychain-db
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
 
       - name: Notarize macOS build
         if: matrix.os == 'macos-latest'
