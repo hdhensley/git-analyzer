@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
 import type { ImportedRepository, RepositorySource } from '../../../shared/types';
 import './RepositoryFilter.css';
@@ -9,22 +9,6 @@ interface RepositoryFilterProps {
 }
 
 type SourceFilterOption = RepositorySource | 'all';
-
-/**
- * Returns the appropriate icon/badge for a repository based on its provider
- */
-function getProviderIcon(provider: RepositorySource): string {
-  switch (provider) {
-    case 'github':
-      return '🐙'; // GitHub octocat
-    case 'bitbucket':
-      return '🪣'; // Bitbucket bucket
-    case 'local':
-      return '📁'; // Local folder
-    default:
-      return '📦'; // Generic package
-  }
-}
 
 /**
  * Returns the display label for a repository provider
@@ -89,10 +73,14 @@ export function RepositoryFilter({ selectedIds, onChange }: RepositoryFilterProp
     return searched.sort((a, b) => a.name.localeCompare(b.name));
   }, [repositories, sourceFilter, folderFilter, searchQuery]);
 
+  // Latest loadRepositories (assigned below, after it's defined), so the
+  // effect only re-runs when the api becomes available.
+  const loadRepositoriesRef = useRef<(() => Promise<void>) | null>(null);
+
   useEffect(() => {
     // Only call loadRepositories when api is available
     if (api) {
-      loadRepositories();
+      loadRepositoriesRef.current?.();
     }
   }, [api]);
 
@@ -110,6 +98,7 @@ export function RepositoryFilter({ selectedIds, onChange }: RepositoryFilterProp
       setLoading(false);
     }
   };
+  loadRepositoriesRef.current = loadRepositories;
 
   const handleToggle = (repoId: string) => {
     const newSelected = selectedIds.includes(repoId)
@@ -266,7 +255,7 @@ export function RepositoryFilter({ selectedIds, onChange }: RepositoryFilterProp
           </div>
         ) : filteredRepositories.length === 0 && searchQuery ? (
           <div className="repository-filter__empty-filter">
-            No repositories match "{searchQuery}"
+            No repositories match &ldquo;{searchQuery}&rdquo;
           </div>
         ) : (
           filteredRepositories.map(repo => {

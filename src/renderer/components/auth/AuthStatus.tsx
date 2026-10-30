@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
 import type { SCMProvider, AuthStatus as AuthStatusType } from '../../../shared/types';
 import './AuthStatus.css';
@@ -36,9 +36,14 @@ export function AuthStatus({ provider, onStatusChange }: AuthStatusProps) {
     }
   };
 
+  // Latest fetchStatus, so the effect below re-runs only on provider/api
+  // changes rather than on every render.
+  const fetchStatusRef = useRef(fetchStatus);
+  fetchStatusRef.current = fetchStatus;
+
   useEffect(() => {
     if (api) {
-      fetchStatus();
+      fetchStatusRef.current();
       api.auth.isOAuthConfigured(provider).then(setOauthAvailable);
     }
   }, [provider, api]);

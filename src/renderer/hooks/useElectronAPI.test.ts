@@ -6,6 +6,10 @@ import { renderHook, act, cleanup } from '@testing-library/react';
 import { useElectronAPI } from './useElectronAPI';
 import type { ElectronAPI } from '../../shared/types/electron-api';
 
+// window.electronAPI is declared required globally; tests need to remove it,
+// so they go through this optional view of window instead of `any`.
+const testWindow = () => window as unknown as { electronAPI?: ElectronAPI };
+
 describe('useElectronAPI', () => {
   let originalElectronAPI: ElectronAPI | undefined;
 
@@ -22,7 +26,7 @@ describe('useElectronAPI', () => {
     if (originalElectronAPI !== undefined) {
       window.electronAPI = originalElectronAPI;
     } else {
-      delete (window as any).electronAPI;
+      delete testWindow().electronAPI;
     }
   });
 
@@ -84,7 +88,7 @@ describe('useElectronAPI', () => {
 
   describe('when window.electronAPI is undefined', () => {
     it('should return null initially', () => {
-      delete (window as any).electronAPI;
+      delete testWindow().electronAPI;
 
       const { result } = renderHook(() => useElectronAPI());
 
@@ -92,7 +96,7 @@ describe('useElectronAPI', () => {
     });
 
     it('should detect API when it becomes available', async () => {
-      delete (window as any).electronAPI;
+      delete testWindow().electronAPI;
 
       const { result } = renderHook(() => useElectronAPI());
       expect(result.current).toBeNull();

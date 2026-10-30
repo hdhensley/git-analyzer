@@ -9,7 +9,6 @@ import type {
   ScanResult,
   LocalRepositoryInfo,
   ScanError,
-  Commit,
   CommitData,
   ScmProjectRepository,
   ScmLocalComparison,

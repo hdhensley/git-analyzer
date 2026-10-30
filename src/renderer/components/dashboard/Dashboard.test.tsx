@@ -45,13 +45,17 @@ vi.mock('../widgets', () => ({
   AuthorRepoMatrixWidgetDefinition: {},
 }));
 
+// window.electronAPI is declared required globally; tests need to set and
+// remove it, so they go through this optional view of window instead of `any`.
+const testWindow = () => globalThis.window as unknown as { electronAPI?: ElectronAPI };
+
 describe('Dashboard', () => {
-  const originalElectronAPI = (globalThis as any).window?.electronAPI;
+  const originalElectronAPI = testWindow()?.electronAPI;
 
   beforeEach(() => {
     // Reset window.electronAPI before each test
     if (typeof globalThis.window === 'undefined') {
-      (globalThis as any).window = {};
+      (globalThis as unknown as { window: object }).window = {};
     }
     // Reset confirm mock
     vi.spyOn(window, 'confirm').mockImplementation(() => true);
@@ -60,9 +64,9 @@ describe('Dashboard', () => {
   afterEach(() => {
     // Restore original state
     if (originalElectronAPI !== undefined) {
-      (globalThis as any).window.electronAPI = originalElectronAPI;
+      testWindow().electronAPI = originalElectronAPI;
     } else {
-      delete (globalThis as any).window?.electronAPI;
+      delete testWindow()?.electronAPI;
     }
     vi.clearAllMocks();
   });
@@ -74,7 +78,7 @@ describe('Dashboard', () => {
   describe('when API is unavailable (null)', () => {
     it('should render without crashing when window.electronAPI is undefined', () => {
       // Ensure window.electronAPI is undefined
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       // This should not throw
       expect(() => {
@@ -83,7 +87,7 @@ describe('Dashboard', () => {
     });
 
     it('should display the dashboard header when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<Dashboard />);
 
@@ -91,7 +95,7 @@ describe('Dashboard', () => {
     });
 
     it('should display navigation buttons when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<Dashboard />);
 
@@ -101,7 +105,7 @@ describe('Dashboard', () => {
     });
 
     it('should render AuthStatus components when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<Dashboard />);
 
@@ -111,7 +115,7 @@ describe('Dashboard', () => {
     });
 
     it('should not call api.preferences.get when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<Dashboard />);
 
@@ -189,7 +193,7 @@ describe('Dashboard', () => {
         onCloneProgress: vi.fn(() => () => {}),
       };
 
-      (globalThis as any).window.electronAPI = mockAPI;
+      testWindow().electronAPI = mockAPI;
 
       render(<Dashboard />);
 
@@ -260,7 +264,7 @@ describe('Dashboard', () => {
         onCloneProgress: vi.fn(() => () => {}),
       };
 
-      (globalThis as any).window.electronAPI = mockAPI;
+      testWindow().electronAPI = mockAPI;
 
       expect(() => {
         render(<Dashboard />);

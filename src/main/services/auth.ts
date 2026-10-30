@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow } from 'electron';
 import { getSecureStorage } from './secure-storage';
 import { getDatabase } from './database';
 import type { SCMProvider, AuthResult, AuthStatus, Credentials } from '../../shared/types';

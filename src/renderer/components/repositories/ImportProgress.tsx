@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
 import type { Repository, ImportProgress as ImportProgressType } from '../../../shared/types';
 import './ImportProgress.css';
@@ -25,10 +25,16 @@ export function ImportProgress({ repositories, onComplete, onRetry }: ImportProg
     return unsubscribe;
   }, [api]);
 
+  // Latest startImport/importing, read by the effect below so it fires only
+  // when the repository list or api changes (not when `importing` flips,
+  // which would re-trigger an import as soon as one finishes).
+  const latestRef = useRef<{ startImport: () => Promise<void>; importing: boolean } | null>(null);
+
   useEffect(() => {
     // Guard: only start import when api is available
-    if (api && repositories.length > 0 && !importing) {
-      startImport();
+    const latest = latestRef.current;
+    if (api && repositories.length > 0 && latest && !latest.importing) {
+      latest.startImport();
     }
   }, [repositories, api]);
 
@@ -53,6 +59,7 @@ export function ImportProgress({ repositories, onComplete, onRetry }: ImportProg
       setImporting(false);
     }
   };
+  latestRef.current = { startImport, importing };
 
   const allComplete = Array.from(progress.values()).every(
     p => p.status === 'complete' || p.status === 'error'

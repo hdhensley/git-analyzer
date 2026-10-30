@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { ChartWidgetProps } from './types';
-import type { AuthorGrouping } from './types';
 import './StreakWidget.css';
 
 function dateKey(d: Date): string {

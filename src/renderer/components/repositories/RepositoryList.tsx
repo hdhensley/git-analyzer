@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
 import type { SCMProvider, Repository } from '../../../shared/types';
 import './RepositoryList.css';
@@ -61,10 +61,15 @@ export function RepositoryList({ provider, onSelectionChange }: RepositoryListPr
     }
   };
 
+  // Latest fetchRepositories, so the effect below re-runs only on
+  // provider/api changes rather than on every render.
+  const fetchRepositoriesRef = useRef(fetchRepositories);
+  fetchRepositoriesRef.current = fetchRepositories;
+
   useEffect(() => {
     // Only call fetchRepositories when api is available
     if (api) {
-      fetchRepositories(1);
+      fetchRepositoriesRef.current(1);
       setSelected(new Set());
       setSelectedProjects(new Set());
     }

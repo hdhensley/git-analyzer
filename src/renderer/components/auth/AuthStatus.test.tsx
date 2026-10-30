@@ -7,22 +7,26 @@ import '@testing-library/jest-dom/vitest';
 import { AuthStatus } from './AuthStatus';
 import type { ElectronAPI } from '../../../shared/types/electron-api';
 
+// window.electronAPI is declared required globally; tests need to set and
+// remove it, so they go through this optional view of window instead of `any`.
+const testWindow = () => globalThis.window as unknown as { electronAPI?: ElectronAPI };
+
 describe('AuthStatus', () => {
-  const originalElectronAPI = (globalThis as any).window?.electronAPI;
+  const originalElectronAPI = testWindow()?.electronAPI;
 
   beforeEach(() => {
     // Reset window.electronAPI before each test
     if (typeof globalThis.window === 'undefined') {
-      (globalThis as any).window = {};
+      (globalThis as unknown as { window: object }).window = {};
     }
   });
 
   afterEach(() => {
     // Restore original state
     if (originalElectronAPI !== undefined) {
-      (globalThis as any).window.electronAPI = originalElectronAPI;
+      testWindow().electronAPI = originalElectronAPI;
     } else {
-      delete (globalThis as any).window?.electronAPI;
+      delete testWindow()?.electronAPI;
     }
     vi.clearAllMocks();
   });
@@ -34,7 +38,7 @@ describe('AuthStatus', () => {
   describe('when API is unavailable (null)', () => {
     it('should display "Waiting for connection..." when window.electronAPI is undefined', () => {
       // Ensure window.electronAPI is undefined
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<AuthStatus provider="github" />);
 
@@ -43,7 +47,7 @@ describe('AuthStatus', () => {
     });
 
     it('should display "Waiting for connection..." for Bitbucket provider when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<AuthStatus provider="bitbucket" />);
 
@@ -52,7 +56,7 @@ describe('AuthStatus', () => {
     });
 
     it('should not crash or throw errors when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       // This should not throw
       expect(() => {
@@ -61,7 +65,7 @@ describe('AuthStatus', () => {
     });
 
     it('should have the disconnected CSS class when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       const { container } = render(<AuthStatus provider="github" />);
 
@@ -70,7 +74,7 @@ describe('AuthStatus', () => {
     });
 
     it('should display a Retry button when API is unavailable', () => {
-      delete (globalThis as any).window.electronAPI;
+      delete testWindow().electronAPI;
 
       render(<AuthStatus provider="github" />);
 
@@ -140,7 +144,7 @@ describe('AuthStatus', () => {
         onCloneProgress: vi.fn(() => () => {}),
       };
 
-      (globalThis as any).window.electronAPI = mockAPI;
+      testWindow().electronAPI = mockAPI;
 
       render(<AuthStatus provider="github" />);
 
@@ -210,7 +214,7 @@ describe('AuthStatus', () => {
         onCloneProgress: vi.fn(() => () => {}),
       };
 
-      (globalThis as any).window.electronAPI = mockAPI;
+      testWindow().electronAPI = mockAPI;
 
       render(<AuthStatus provider="github" />);
 
