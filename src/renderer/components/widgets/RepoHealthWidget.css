@@ -2,8 +2,14 @@
 .repo-health--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted, #6b7280); }
 
 .repo-health__table { display: flex; flex-direction: column; gap: 0; overflow-x: auto; }
+.repo-health__header-row,
+.repo-health__row {
+  /* --repo-col / --other-col-count / --row-min-width are set inline by the widget. */
+  grid-template-columns: var(--repo-col, minmax(260px, 3fr)) repeat(var(--other-col-count, 6), minmax(72px, 1fr));
+  min-width: var(--row-min-width, auto);
+}
 .repo-health__header-row {
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  display: grid; gap: 0.5rem; padding: 0.5rem 0.75rem;
   font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--color-muted, #6b7280); border-bottom: 2px solid var(--border-color, #e5e7eb);
 }
@@ -15,18 +21,36 @@
 }
 .repo-health__sort:hover { color: var(--text-primary, #1f2937); }
 .repo-health__sort:focus-visible { outline: 2px solid var(--color-primary, #3b82f6); outline-offset: 2px; border-radius: 2px; }
+.repo-health__header-row { align-items: center; }
 .repo-health__row {
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  display: grid; gap: 0.5rem; padding: 0.5rem 0.75rem;
   font-size: 0.8rem; border-bottom: 1px solid var(--border-color, #f3f4f6); align-items: center;
 }
 .repo-health__row:hover { background: var(--bg-secondary, #f9fafb); }
-.repo-health__repo-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Two extra columns (Critical, High) when the Snyk integration is connected. */
-.repo-health__table--snyk .repo-health__header-row,
-.repo-health__table--snyk .repo-health__row {
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+/* Repository cell: repo name on top, parent folder muted underneath, so the
+   shared prefix (e.g. "microservices/") doesn't eat the visible width. */
+.repo-health__repo-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.repo-health__repo-leaf,
+.repo-health__repo-parent { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.repo-health__repo-leaf { font-weight: 500; }
+.repo-health__repo-parent { font-size: 0.7rem; color: var(--color-muted, #6b7280); }
+
+/* Resizable repository header with a drag handle on its right edge. */
+.repo-health__repo-header { position: relative; display: flex; align-items: center; min-width: 0; }
+.repo-health__col-resizer {
+  position: absolute; top: -0.5rem; bottom: -0.5rem; right: -0.5rem; width: 0.75rem;
+  cursor: col-resize; touch-action: none; z-index: 1;
 }
+.repo-health__col-resizer::after {
+  content: ''; position: absolute; top: 25%; bottom: 25%; left: 50%; width: 2px;
+  transform: translateX(-50%); border-radius: 1px; background: var(--border-color, #d1d5db);
+  transition: background-color 0.15s;
+}
+.repo-health__col-resizer:hover::after,
+.repo-health__col-resizer:active::after { background: var(--color-primary, #3b82f6); }
+.repo-health__col-resizer:focus-visible { outline: none; }
+.repo-health__col-resizer:focus-visible::after { background: var(--color-primary, #3b82f6); width: 3px; }
 
 .repo-health__snyk-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
