@@ -3,9 +3,7 @@ import type {
   SCMProvider,
   Repository,
   RepositoryPage,
-  Commit,
   CommitData,
-  RepositorySource,
 } from '../../shared/types';
 
 const PAGE_SIZE = 100;
@@ -416,7 +414,7 @@ export class GitService {
       };
     };
 
-    while (true) {
+    for (;;) {
       onProgress?.({ currentPage: page, commitsSoFar: allCommits.length });
 
       const url = new URL(`https://api.github.com/repos/${repo.owner}/${repo.name}/commits`);
@@ -608,7 +606,7 @@ export class GitService {
       };
     };
 
-    while (true) {
+    for (;;) {
       onProgress?.({ currentPage: page, commitsSoFar: allCommits.length });
       const url = new URL(`https://api.github.com/repos/${repo.owner}/${repo.name}/commits`);
       url.searchParams.set('per_page', perPage.toString());

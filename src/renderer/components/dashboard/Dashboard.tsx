@@ -21,6 +21,22 @@ WidgetRegistry.register(CommitMessageAnalysisWidgetDefinition);
 WidgetRegistry.register(RepoHealthWidgetDefinition);
 WidgetRegistry.register(AuthorRepoMatrixWidgetDefinition);
 
+// Persist the last-sync time across restarts so launching the app doesn't
+// trigger an immediate sync when one ran recently.
+const LAST_SYNC_STORAGE_KEY = 'gitAnalytics.lastSyncAt';
+const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+function readPersistedLastSync(): number {
+  try {
+    const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+    const parsed = raw ? parseInt(raw, 10) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
 type View = 'connect' | 'import' | 'importing' | 'analytics' | 'compare';
 type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'commit-messages' | 'insights';
 type ImportSource = null | 'local' | 'github' | 'bitbucket';
@@ -62,31 +78,24 @@ export function Dashboard() {
   } | null>(null);
   const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
-  // Persist the last-sync time across restarts so launching the app doesn't
-  // trigger an immediate sync when one ran recently.
-  const LAST_SYNC_STORAGE_KEY = 'gitAnalytics.lastSyncAt';
-  const readPersistedLastSync = (): number => {
-    try {
-      const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
-      const parsed = raw ? parseInt(raw, 10) : 0;
-      return Number.isFinite(parsed) ? parsed : 0;
-    } catch {
-      return 0;
-    }
-  };
   const lastSyncRef = useRef<number>(readPersistedLastSync());
   const syncingRef = useRef(false);
   // Mirror of snykConnected so the background sync (whose closures are captured
   // at mount) always sees the live connection state.
   const snykConnectedRef = useRef(false);
-
-  const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
-  const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+  // Latest versions of handlers used from long-lived effects (mount-time
+  // listeners and intervals). Assigned after the handlers are defined below so
+  // background syncs see current filters instead of mount-time closures.
+  const handlersRef = useRef<{
+    loadPreferences: () => Promise<void>;
+    fetchCommits: () => Promise<void>;
+    handleSync: () => Promise<void>;
+  } | null>(null);
 
   // Load preferences on mount (only when api is available)
   useEffect(() => {
     if (api) {
-      loadPreferences();
+      handlersRef.current?.loadPreferences();
     }
   }, [api]);
 
@@ -116,7 +125,7 @@ export function Dashboard() {
   // Fetch commits when filters change (only when api is available)
   useEffect(() => {
     if (api && view === 'analytics' && selectedRepoIds.length > 0) {
-      fetchCommits();
+      handlersRef.current?.fetchCommits();
     }
   }, [api, selectedRepoIds, dateRange, view]);
 
@@ -126,7 +135,7 @@ export function Dashboard() {
     const cleanup = api.onSyncTrigger(() => {
       if (syncingRef.current) return;
       if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
-      handleSync();
+      handlersRef.current?.handleSync();
     });
     return cleanup;
   }, [api]);
@@ -162,7 +171,7 @@ export function Dashboard() {
     const id = setInterval(() => {
       if (syncingRef.current) return;
       if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
-      handleSync();
+      handlersRef.current?.handleSync();
     }, SYNC_INTERVAL_MS);
     return () => clearInterval(id);
   }, [api]);
@@ -323,8 +332,11 @@ export function Dashboard() {
     }
   };
 
+  // Keep long-lived effects pointed at the current handlers. Effects run after
+  // render, so this is always set before any of them read it.
+  handlersRef.current = { loadPreferences, fetchCommits, handleSync };
+
   const anyConnected = githubConnected || bitbucketConnected;
-  const widgets = WidgetRegistry.getWidgets();
   const selectedRepositories = importedRepositories.filter((r) =>
     selectedRepoIds.includes(r.id)
   );
