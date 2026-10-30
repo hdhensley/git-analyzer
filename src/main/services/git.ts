@@ -567,7 +567,8 @@ export class GitService {
 
   async fetchNewCommits(
     repo: Repository,
-    since: Date
+    since: Date,
+    onProgress?: FetchProgressCallback
   ): Promise<{ commits: CommitData[]; repository: Repository; fetchedAt: Date }> {
     if (repo.provider === 'local') {
       throw new Error('Local repositories should be handled by LocalGitService');
@@ -581,9 +582,9 @@ export class GitService {
 
     let commits: CommitData[];
     if (repo.provider === 'github') {
-      commits = await this.fetchGitHubCommitsSince(authHeader, repo, since);
+      commits = await this.fetchGitHubCommitsSince(authHeader, repo, since, onProgress);
     } else {
-      commits = await this.fetchBitbucketCommitsSince(authHeader, repo, since);
+      commits = await this.fetchBitbucketCommitsSince(authHeader, repo, since, onProgress);
     }
 
     return { commits, repository: repo, fetchedAt: new Date() };
@@ -592,7 +593,8 @@ export class GitService {
   private async fetchGitHubCommitsSince(
     authHeader: string,
     repo: Repository,
-    since: Date
+    since: Date,
+    onProgress?: FetchProgressCallback
   ): Promise<CommitData[]> {
     const allCommits: CommitData[] = [];
     let page = 1;
@@ -607,18 +609,23 @@ export class GitService {
     };
 
     while (true) {
+      onProgress?.({ currentPage: page, commitsSoFar: allCommits.length });
       const url = new URL(`https://api.github.com/repos/${repo.owner}/${repo.name}/commits`);
       url.searchParams.set('per_page', perPage.toString());
       url.searchParams.set('page', page.toString());
       url.searchParams.set('sha', repo.defaultBranch);
       url.searchParams.set('since', since.toISOString());
 
-      const response = await fetchWithRetry(url.toString(), {
-        headers: {
-          Authorization: authHeader,
-          Accept: 'application/vnd.github.v3+json',
+      const response = await fetchWithRetry(
+        url.toString(),
+        {
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/vnd.github.v3+json',
+          },
         },
-      });
+        onProgress
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch commits: ${response.statusText}`);
@@ -649,7 +656,8 @@ export class GitService {
   private async fetchBitbucketCommitsSince(
     authHeader: string,
     repo: Repository,
-    since: Date
+    since: Date,
+    onProgress?: FetchProgressCallback
   ): Promise<CommitData[]> {
     const allCommits: CommitData[] = [];
     const normalizedBranch = this.normalizeBitbucketBranchName(repo.defaultBranch);
@@ -668,12 +676,17 @@ export class GitService {
     };
 
     while (nextUrl) {
-      const response: Response = await fetchWithRetry(nextUrl, {
-        headers: {
-          Authorization: authHeader,
-          Accept: 'application/json',
+      onProgress?.({ currentPage: page, commitsSoFar: allCommits.length });
+      const response: Response = await fetchWithRetry(
+        nextUrl,
+        {
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/json',
+          },
         },
-      });
+        onProgress
+      );
 
       if (!response.ok) {
         if (

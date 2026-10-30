@@ -54,6 +54,12 @@ export function Dashboard() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncTotalRepos, setSyncTotalRepos] = useState(0);
   const [syncProcessedRepos, setSyncProcessedRepos] = useState(0);
+  // What the sync is working on right now (repo, local/cloud pass, step).
+  const [syncCurrent, setSyncCurrent] = useState<{
+    repoName: string;
+    phase?: 'local' | 'cloud';
+    step?: string;
+  } | null>(null);
   const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
   // Persist the last-sync time across restarts so launching the app doesn't
@@ -135,6 +141,15 @@ export function Dashboard() {
       }
       if (typeof progress.processedRepos === 'number') {
         setSyncProcessedRepos(progress.processedRepos);
+      }
+      // Only in-flight updates describe current work; completion events for a
+      // repo are immediately followed by the next repo's 'syncing' event.
+      if (progress.status === 'syncing') {
+        setSyncCurrent({
+          repoName: progress.repositoryName,
+          phase: progress.phase,
+          step: progress.step,
+        });
       }
     });
 
@@ -259,6 +274,7 @@ export function Dashboard() {
     setSyncStatus(null);
     setSyncTotalRepos(0);
     setSyncProcessedRepos(0);
+    setSyncCurrent(null);
     setSyncErrors([]);
     setSyncErrorsExpanded(false);
     try {
@@ -291,6 +307,7 @@ export function Dashboard() {
     } finally {
       syncingRef.current = false;
       setSyncing(false);
+      setSyncCurrent(null);
     }
 
     // Refresh Snyk issue counts as part of the background sync. This is a
@@ -546,6 +563,24 @@ export function Dashboard() {
                   <div className="dashboard__sync-progress-text">
                     {syncProcessedRepos} / {syncTotalRepos} repositories
                   </div>
+                  {syncCurrent && (
+                    <div
+                      className="dashboard__sync-current"
+                      role="status"
+                      aria-live="polite"
+                      title={`${syncCurrent.repoName}${syncCurrent.step ? ` — ${syncCurrent.step}` : ''}`}
+                    >
+                      {syncCurrent.phase && (
+                        <span className="dashboard__sync-phase">
+                          {syncCurrent.phase === 'local' ? 'Local' : 'Cloud'}
+                        </span>
+                      )}
+                      <span className="dashboard__sync-current-repo">{syncCurrent.repoName}</span>
+                      {syncCurrent.step && (
+                        <span className="dashboard__sync-current-step">{syncCurrent.step}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {syncStatus && (

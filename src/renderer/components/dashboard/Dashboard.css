@@ -407,6 +407,41 @@
   text-align: center;
 }
 
+/* What the sync is working on right now: [phase] repo — step */
+.dashboard__sync-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: var(--color-muted, #6b7280);
+  text-align: center;
+}
+
+.dashboard__sync-phase {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-secondary, #f3f4f6);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard__sync-current-repo,
+.dashboard__sync-current-step {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard__sync-current-repo {
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }

@@ -7,6 +7,7 @@ import {
   getLocalGitService,
   getUpdateService,
 } from './services';
+import type { FetchProgressCallback } from './services/git';
 import type {
   SCMProvider,
   Repository,
@@ -133,7 +134,12 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('repositories:sync', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
-    const repos = db.getImportedRepositories();
+    // Local repos first: they're quick on-disk reads, so the bulk of the
+    // progress bar moves immediately and the slow network-bound cloud repos
+    // run last. Array.sort is stable, so import order is kept within each group.
+    const repos = db
+      .getImportedRepositories()
+      .sort((a, b) => Number(a.provider !== 'local') - Number(b.provider !== 'local'));
     const localGit = getLocalGitService();
     let processedRepos = 0;
     const result: SyncResult = {
@@ -150,13 +156,29 @@ export function registerIpcHandlers(): void {
         status: 'syncing',
         totalRepos: repos.length,
         processedRepos,
+        phase: repo.provider === 'local' ? 'local' : 'cloud',
+        step: 'Starting',
       };
-      window?.webContents.send('sync:progress', progress);
+      // Sends an in-flight step update for the current repo.
+      const reportStep = (step: string) => {
+        progress.step = step;
+        window?.webContents.send('sync:progress', { ...progress });
+      };
+      const onFetchProgress: FetchProgressCallback = (info) => {
+        if (info.rateLimitRetrySeconds) {
+          reportStep(`Rate limited, retrying in ${info.rateLimitRetrySeconds}s`);
+        } else if (info.currentPage) {
+          const soFar = info.commitsSoFar ? `, ${info.commitsSoFar} so far` : '';
+          reportStep(`Fetching commits (page ${info.currentPage}${soFar})`);
+        }
+      };
+      window?.webContents.send('sync:progress', { ...progress });
 
       try {
         let newCommits = 0;
 
         if (repo.provider === 'local') {
+          reportStep('Checking repository path');
           if (!repo.localPath) {
             progress.status = 'skipped';
             processedRepos += 1;
@@ -176,6 +198,7 @@ export function registerIpcHandlers(): void {
           }
           db.updateRepositoryAvailability(repo.id, true);
           // Refresh the default branch in case it changed since import.
+          reportStep('Checking default branch');
           try {
             const detected = await localGit.detectDefaultBranch(repo.localPath);
             if (detected && detected !== repo.defaultBranch) {
@@ -184,8 +207,10 @@ export function registerIpcHandlers(): void {
           } catch {
             // Non-fatal: keep the stored default branch.
           }
+          reportStep('Reading git log');
           const commits = await localGit.fetchCommits(repo.localPath, repo.lastSyncAt);
           if (commits.length > 0) {
+            reportStep(`Saving ${commits.length} commit${commits.length !== 1 ? 's' : ''}`);
             db.saveCommits(repo.id, commits);
             newCommits = commits.length;
           }
@@ -194,6 +219,7 @@ export function registerIpcHandlers(): void {
           try {
             // Refresh the default branch in case it changed on the provider
             // since import. Non-fatal if it can't be fetched.
+            reportStep(`Checking default branch on ${repo.provider}`);
             const latestBranch = await gitService.fetchDefaultBranch(repo);
             if (latestBranch && latestBranch !== repo.defaultBranch) {
               db.updateRepositoryDefaultBranch(repo.id, latestBranch);
@@ -204,9 +230,11 @@ export function registerIpcHandlers(): void {
             const existingCommitCount = db.getCommitCount(repo.id);
             const fetchResult =
               existingCommitCount === 0
-                ? await gitService.fetchGitLog(repo)
-                : await gitService.fetchNewCommits(repo, repo.lastSyncAt);
+                ? await gitService.fetchGitLog(repo, onFetchProgress)
+                : await gitService.fetchNewCommits(repo, repo.lastSyncAt, onFetchProgress);
             if (fetchResult.commits.length > 0) {
+              const n = fetchResult.commits.length;
+              reportStep(`Saving ${n} commit${n !== 1 ? 's' : ''}`);
               db.saveCommits(repo.id, fetchResult.commits);
               newCommits = fetchResult.commits.length;
             }

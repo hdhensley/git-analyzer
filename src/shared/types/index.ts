@@ -155,6 +155,12 @@ export interface SyncProgress {
   processedRepos?: number;
   newCommits?: number;
   error?: string;
+  // Which pass the sync is in: local repos are synced first (fast, on-disk),
+  // then cloud repos (network-bound).
+  phase?: 'local' | 'cloud';
+  // Human-readable description of what the sync is doing for this repo right
+  // now, e.g. "Reading git log" or "Fetching commits (page 3, 200 so far)".
+  step?: string;
 }
 
 export interface SyncResult {
