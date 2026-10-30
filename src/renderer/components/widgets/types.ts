@@ -1,7 +1,14 @@
 import type { ComponentType } from 'react';
 import type { Commit, DateRange, Repository } from '../../../shared/types';
 
-export type GitLogField = 'hash' | 'authorName' | 'authorEmail' | 'date' | 'message';
+export type GitLogField =
+  | 'hash'
+  | 'authorName'
+  | 'authorEmail'
+  | 'date'
+  | 'message'
+  | 'repositoryId'
+  | 'repositoryName';
 
 export type AuthorGrouping = 'name' | 'email';
 

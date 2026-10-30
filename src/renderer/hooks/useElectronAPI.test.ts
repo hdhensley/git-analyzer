@@ -29,6 +29,8 @@ describe('useElectronAPI', () => {
   const createMockAPI = (): ElectronAPI => ({
     auth: {
       authenticate: vi.fn(),
+      authenticateWithToken: vi.fn(),
+      isOAuthConfigured: vi.fn(),
       getStatus: vi.fn(),
       disconnect: vi.fn(),
     },
@@ -37,6 +39,7 @@ describe('useElectronAPI', () => {
       import: vi.fn(),
       getImported: vi.fn(),
       delete: vi.fn(),
+      sync: vi.fn(),
     },
     commits: {
       query: vi.fn(),
@@ -54,9 +57,29 @@ describe('useElectronAPI', () => {
       refresh: vi.fn(),
       remove: vi.fn(),
       checkGit: vi.fn(),
+      branchDivergence: vi.fn(),
+    },
+    snyk: {
+      getStatus: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      getHealth: vi.fn(),
+    },
+    updates: {
+      check: vi.fn(),
+    },
+    scmCompare: {
+      listProjectGroups: vi.fn(),
+      listGroupRepositories: vi.fn(),
+      selectLocalFolder: vi.fn(),
+      compare: vi.fn(),
+      cloneRepositories: vi.fn(),
     },
     onImportProgress: vi.fn(),
     onScanProgress: vi.fn(() => () => {}),
+    onSyncProgress: vi.fn(() => () => {}),
+    onSyncTrigger: vi.fn(() => () => {}),
+    onCloneProgress: vi.fn(() => () => {}),
   });
 
   describe('when window.electronAPI is undefined', () => {
