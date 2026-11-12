@@ -632,13 +632,3 @@ export class LocalGitService {
     }
   }
 }
-
-// Singleton instance
-let localGitInstance: LocalGitService | null = null;
-
-export function getLocalGitService(): LocalGitService {
-  if (!localGitInstance) {
-    localGitInstance = new LocalGitService();
-  }
-  return localGitInstance;
-}

@@ -1,4 +1,4 @@
-import { getAuthService } from './auth';
+import type { AuthService } from './auth';
 import type {
   SCMProvider,
   Repository,
@@ -47,7 +47,7 @@ async function fetchWithRetry(
 }
 
 export class GitService {
-  private authService = getAuthService();
+  constructor(private readonly authService: AuthService) {}
 
   private normalizeBitbucketBranchName(branch: string | undefined): string | undefined {
     if (!branch) return undefined;
@@ -741,14 +741,4 @@ export class GitService {
 
     return allCommits;
   }
-}
-
-// Singleton instance
-let gitInstance: GitService | null = null;
-
-export function getGitService(): GitService {
-  if (!gitInstance) {
-    gitInstance = new GitService();
-  }
-  return gitInstance;
 }

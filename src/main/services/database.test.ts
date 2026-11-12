@@ -246,4 +246,30 @@ describe('DatabaseService - Local Repository Support', () => {
       });
     });
   });
+  describe('space settings', () => {
+    it('returns null for an unset key', () => {
+      expect(db.getSetting('awsProfile')).toBeNull();
+    });
+
+    it('stores, overwrites and removes values', () => {
+      db.setSetting('awsProfile', 'work');
+      expect(db.getSetting('awsProfile')).toBe('work');
+      db.setSetting('awsProfile', 'other');
+      expect(db.getSetting('awsProfile')).toBe('other');
+      db.setSetting('awsProfile', null);
+      expect(db.getSetting('awsProfile')).toBeNull();
+    });
+
+    it('keeps settings separate between databases', async () => {
+      const otherDir = await fs.mkdtemp(path.join(os.tmpdir(), 'db-test-other-'));
+      const other = new DatabaseService(path.join(otherDir, 'other.db'));
+      try {
+        db.setSetting('k', 'a');
+        expect(other.getSetting('k')).toBeNull();
+      } finally {
+        other.close();
+        await fs.rm(otherDir, { recursive: true, force: true });
+      }
+    });
+  });
 });

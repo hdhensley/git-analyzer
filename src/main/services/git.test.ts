@@ -1,17 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Avoid pulling in Electron/keytar via the real AuthService during construction.
-vi.mock('./auth', () => ({
-  getAuthService: () => ({
-    getAuthHeader: vi.fn(),
-    getCredentials: vi.fn(),
-  }),
-}));
-
 import { GitService } from './git';
+import type { AuthService } from './auth';
+
+// A stub keeps the real AuthService (and so Electron/keytar) out of the test.
+const authStub = {
+  getAuthHeader: vi.fn(),
+  getCredentials: vi.fn(),
+} as unknown as AuthService;
 
 describe('GitService.listCachedScmProjectGroups', () => {
-  const service = new GitService();
+  const service = new GitService(authStub);
 
   it('groups imported repos by parentFolder and counts them, filtered by provider', () => {
     const imported = [

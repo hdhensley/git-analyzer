@@ -128,6 +128,24 @@ export interface RepoActivity {
   uniqueAuthorEmails: number;
 }
 
+// A space is an isolated setup: its own database, credentials and settings.
+export interface SpaceConnections {
+  github: boolean;
+  bitbucket: boolean;
+  snyk: boolean;
+}
+
+export interface SpaceSummary {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  active: boolean;
+  // Which services have saved credentials in this space. Only filled in by
+  // `spaces.list`, which reads the keychain for every space.
+  connections?: SpaceConnections;
+}
+
 // Extended to include 'local' as a repository source
 export type RepositorySource = 'github' | 'bitbucket' | 'local';
 

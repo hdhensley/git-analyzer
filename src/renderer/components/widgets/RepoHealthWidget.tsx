@@ -12,6 +12,7 @@ import type {
   PipelineAuditResult,
 } from '../../../shared/types';
 import { useElectronAPI } from '../../hooks';
+import { loadSpaceSetting, saveSpaceSetting } from '../../utils/spaceSettings';
 import './RepoHealthWidget.css';
 
 interface RepoHealth {
@@ -55,7 +56,8 @@ const OTHER_COL_MIN = 72;
 const COL_GAP = 8;
 const ROW_PADDING_X = 24;
 
-const AWS_PROFILE_STORAGE_KEY = 'repoHealth.awsProfile';
+const AWS_PROFILE_SETTING_KEY = 'awsProfile';
+const LEGACY_AWS_PROFILE_STORAGE_KEY = 'repoHealth.awsProfile';
 
 // Higher rank = bigger problem; used for sorting, the "problems only" filter,
 // and picking the worst entry when a repo has several pipeline stacks.
@@ -224,13 +226,9 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
   // runs automatically for local repos; the deployed-state comparison needs an
   // AWS profile and is run on demand.
   const [awsProfiles, setAwsProfiles] = useState<AwsProfile[]>([]);
-  const [awsProfile, setAwsProfile] = useState<string>(() => {
-    try {
-      return window.localStorage.getItem(AWS_PROFILE_STORAGE_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const [awsProfile, setAwsProfile] = useState<string>('');
+  // The selection is stored per space; don't write back before it has loaded.
+  const [awsProfileLoaded, setAwsProfileLoaded] = useState(false);
   const [audit, setAudit] = useState<PipelineAuditResult | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -280,13 +278,22 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
   }, [api, runAudit]);
 
   useEffect(() => {
-    try {
-      if (awsProfile) window.localStorage.setItem(AWS_PROFILE_STORAGE_KEY, awsProfile);
-      else window.localStorage.removeItem(AWS_PROFILE_STORAGE_KEY);
-    } catch {
-      // Storage unavailable; selection just won't persist.
-    }
-  }, [awsProfile]);
+    if (!api) return;
+    let cancelled = false;
+    loadSpaceSetting(api, AWS_PROFILE_SETTING_KEY, LEGACY_AWS_PROFILE_STORAGE_KEY).then((v) => {
+      if (cancelled) return;
+      setAwsProfile(v ?? '');
+      setAwsProfileLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!api || !awsProfileLoaded) return;
+    saveSpaceSetting(api, AWS_PROFILE_SETTING_KEY, awsProfile || null);
+  }, [api, awsProfile, awsProfileLoaded]);
 
   // Worst pipeline entry per repo (a repo can have several pipeline stacks).
   const pipelineByRepo = useMemo(() => {
@@ -305,21 +312,25 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     return map;
   }, [audit]);
 
-  const showPipelineCol = useMemo(
+  // Any CDK pipeline stack found in the selected local repos.
+  const hasPipelines = useMemo(
     () => (audit?.entries ?? []).some((e) => e.snykStatus !== 'nopipe'),
     [audit]
   );
-  const showDeployCol = showPipelineCol && Boolean(audit?.profile) && !audit?.credentialsError;
+  // The Snyk pipeline column is a Snyk feature: hide it when Snyk isn't connected.
+  const showPipelineCol = hasPipelines && snykConnected;
+  // The deployed-state check is about AWS, not Snyk, so it doesn't need Snyk.
+  const showDeployCol = hasPipelines && Boolean(audit?.profile) && !audit?.credentialsError;
 
   const pipelineSummary = useMemo(() => {
     let snykProblems = 0;
     let deployProblems = 0;
     for (const { all } of pipelineByRepo.values()) {
-      if (all.some(isPipelineProblem)) snykProblems++;
+      if (snykConnected && all.some(isPipelineProblem)) snykProblems++;
       if (all.some(isDeployProblem)) deployProblems++;
     }
     return { snykProblems, deployProblems };
-  }, [pipelineByRepo]);
+  }, [pipelineByRepo, snykConnected]);
 
   // Repo id -> default branch / provider, sourced from repository metadata.
   const defaultBranchById = useMemo(() => {
@@ -483,9 +494,9 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     if (!onlyProblems || !audit) return sortedRepos;
     return sortedRepos.filter((r) => {
       const p = pipelineByRepo.get(r.repoId);
-      return p ? p.all.some((e) => isPipelineProblem(e) || isDeployProblem(e)) : false;
+      return p ? p.all.some((e) => (snykConnected && isPipelineProblem(e)) || isDeployProblem(e)) : false;
     });
-  }, [sortedRepos, onlyProblems, audit, pipelineByRepo]);
+  }, [sortedRepos, onlyProblems, audit, pipelineByRepo, snykConnected]);
 
   if (repositories.length === 0) {
     return <div className="repo-health repo-health--empty">No repositories selected</div>;
@@ -591,8 +602,9 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
             Pipelines · CDK + AWS
           </h4>
           <p className="repo-health__source-desc">
-            Checks each local repo&apos;s CodePipeline stack for complete Snyk scanning (monitor,
-            dependency test, code scan) and, optionally, that AWS is running that same pipeline.
+            {snykConnected
+              ? 'Checks each local repo\u2019s CodePipeline stack for complete Snyk scanning (monitor, dependency test, code scan) and, optionally, that AWS is running that same pipeline.'
+              : 'Finds each local repo\u2019s CodePipeline stack and, optionally, checks that AWS is running that same pipeline. Connect Snyk to also audit the Snyk scanning in each pipeline.'}
           </p>
           {!api?.pipelineAudit || !localRepoIdsKey ? (
             <p className="repo-health__source-hint">
@@ -608,14 +620,26 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
                   <span className="repo-health__snyk-error-text">{auditError}</span>
                 ) : audit?.credentialsError ? (
                   <span className="repo-health__snyk-error-text">AWS: {audit.credentialsError}</span>
-                ) : showPipelineCol ? (
+                ) : hasPipelines ? (
                   <>
-                    <strong>{pipelineSummary.snykProblems}</strong> with incomplete Snyk
+                    {snykConnected && (
+                      <>
+                        <strong>{pipelineSummary.snykProblems}</strong> with incomplete Snyk
+                      </>
+                    )}
+                    {snykConnected && showDeployCol && ' · '}
                     {showDeployCol && (
                       <>
-                        {' · '}
                         <strong>{pipelineSummary.deployProblems}</strong> out of sync or not
                         deployed (account {audit?.accountId})
+                      </>
+                    )}
+                    {!snykConnected && !showDeployCol && (
+                      <>
+                        <strong>
+                          {[...pipelineByRepo.values()].filter((v) => v.all.some((e) => e.snykStatus !== 'nopipe')).length}
+                        </strong>{' '}
+                        with a pipeline stack
                       </>
                     )}
                   </>
@@ -682,7 +706,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           )}
         </section>
       </div>
-      {showPipelineCol && (
+      {(showPipelineCol || showDeployCol) && (
         <div className="repo-health__toolbar">
           <label className="repo-health__pipeline-check">
             <input

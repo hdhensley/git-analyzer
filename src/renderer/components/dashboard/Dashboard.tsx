@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useElectronAPI } from '../../hooks';
+import { loadSpaceSetting, saveSpaceSetting } from '../../utils/spaceSettings';
 import { AuthStatus, SnykConnection } from '../auth';
+import { SpaceSwitcher, SpacesManager } from '../spaces';
 import { RepositoryList, ImportProgress, LocalRepositoryBrowser, ScmLocalCompare } from '../repositories';
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
 import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition } from '../widgets';
@@ -21,23 +23,14 @@ WidgetRegistry.register(CommitMessageAnalysisWidgetDefinition);
 WidgetRegistry.register(RepoHealthWidgetDefinition);
 WidgetRegistry.register(AuthorRepoMatrixWidgetDefinition);
 
-// Persist the last-sync time across restarts so launching the app doesn't
-// trigger an immediate sync when one ran recently.
-const LAST_SYNC_STORAGE_KEY = 'gitAnalytics.lastSyncAt';
+// Persist the last-sync time (per space) across restarts so launching the app
+// doesn't trigger an immediate sync when one ran recently.
+const LAST_SYNC_SETTING_KEY = 'lastSyncAt';
+const LEGACY_LAST_SYNC_STORAGE_KEY = 'gitAnalytics.lastSyncAt';
 const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
-function readPersistedLastSync(): number {
-  try {
-    const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
-    const parsed = raw ? parseInt(raw, 10) : 0;
-    return Number.isFinite(parsed) ? parsed : 0;
-  } catch {
-    return 0;
-  }
-}
-
-type View = 'connect' | 'import' | 'importing' | 'analytics';
+type View = 'connect' | 'import' | 'importing' | 'analytics' | 'spaces';
 // Analytics is split by whether the data is time-bound:
 //  - trends:   activity over a chosen date range
 //  - snapshot: current state of every selected repo, no date range
@@ -52,6 +45,8 @@ const SECTION_LABELS: Record<AnalyticsSection, string> = {
   snapshot: 'Snapshot',
   insights: 'Insights',
 };
+const ANALYTICS_SECTION_KEY = 'analyticsSection';
+const TRENDS_VIEW_KEY = 'trendsView';
 const SECTION_HINTS: Record<AnalyticsSection, string> = {
   trends: 'How activity changes over the selected date range',
   snapshot: 'Where every selected repository stands right now (ignores the date range)',
@@ -70,6 +65,9 @@ export function Dashboard() {
   const [view, setView] = useState<View>('connect');
   const [section, setSection] = useState<AnalyticsSection>('trends');
   const [trendsView, setTrendsView] = useState<TrendsView>('overview');
+  // Remember the last section/sub-view per space. Writes wait for the load so
+  // the defaults can't overwrite what was saved.
+  const [viewStateLoaded, setViewStateLoaded] = useState(false);
   
   // Auth state
   const [githubConnected, setGithubConnected] = useState(false);
@@ -101,7 +99,10 @@ export function Dashboard() {
   } | null>(null);
   const [syncErrors, setSyncErrors] = useState<{ repoName: string; error: string }[]>([]);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(false);
-  const lastSyncRef = useRef<number>(readPersistedLastSync());
+  const lastSyncRef = useRef<number>(0);
+  // Auto-sync must wait until the persisted last-sync time has been read, or a
+  // restart would ignore the cooldown.
+  const lastSyncLoadedRef = useRef(false);
   const syncingRef = useRef(false);
   // Mirror of snykConnected so the background sync (whose closures are captured
   // at mount) always sees the live connection state.
@@ -114,6 +115,51 @@ export function Dashboard() {
     fetchCommits: () => Promise<void>;
     handleSync: () => Promise<void>;
   } | null>(null);
+
+  // Restore the last analytics section for the active space.
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    Promise.all([
+      loadSpaceSetting(api, ANALYTICS_SECTION_KEY),
+      loadSpaceSetting(api, TRENDS_VIEW_KEY),
+    ]).then(([savedSection, savedTrends]) => {
+      if (cancelled) return;
+      if ((Object.keys(SECTION_LABELS) as string[]).includes(savedSection ?? '')) {
+        setSection(savedSection as AnalyticsSection);
+      }
+      if (TRENDS_VIEWS.some((v) => v.id === savedTrends)) {
+        setTrendsView(savedTrends as TrendsView);
+      }
+      setViewStateLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (api && viewStateLoaded) saveSpaceSetting(api, ANALYTICS_SECTION_KEY, section);
+  }, [api, viewStateLoaded, section]);
+
+  useEffect(() => {
+    if (api && viewStateLoaded) saveSpaceSetting(api, TRENDS_VIEW_KEY, trendsView);
+  }, [api, viewStateLoaded, trendsView]);
+
+  // Restore the last-sync time for the active space.
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    loadSpaceSetting(api, LAST_SYNC_SETTING_KEY, LEGACY_LAST_SYNC_STORAGE_KEY).then((raw) => {
+      if (cancelled) return;
+      const parsed = raw ? parseInt(raw, 10) : 0;
+      lastSyncRef.current = Number.isFinite(parsed) ? parsed : 0;
+      lastSyncLoadedRef.current = true;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   // Load preferences on mount (only when api is available)
   useEffect(() => {
@@ -156,7 +202,7 @@ export function Dashboard() {
   useEffect(() => {
     if (!api) return;
     const cleanup = api.onSyncTrigger(() => {
-      if (syncingRef.current) return;
+      if (syncingRef.current || !lastSyncLoadedRef.current) return;
       if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
       handlersRef.current?.handleSync();
     });
@@ -192,7 +238,7 @@ export function Dashboard() {
   useEffect(() => {
     if (!api) return;
     const id = setInterval(() => {
-      if (syncingRef.current) return;
+      if (syncingRef.current || !lastSyncLoadedRef.current) return;
       if (Date.now() - lastSyncRef.current < SYNC_COOLDOWN_MS) return;
       handlersRef.current?.handleSync();
     }, SYNC_INTERVAL_MS);
@@ -313,11 +359,7 @@ export function Dashboard() {
       const result = await api.repositories.sync();
       const now = new Date();
       lastSyncRef.current = now.getTime();
-      try {
-        localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(now.getTime()));
-      } catch {
-        // Ignore storage failures; the in-memory cooldown still applies.
-      }
+      await saveSpaceSetting(api, LAST_SYNC_SETTING_KEY, String(now.getTime()));
       const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       if (result.totalNewCommits > 0) {
         setSyncStatus(`Synced ${result.totalNewCommits} new commit${result.totalNewCommits !== 1 ? 's' : ''} from ${result.syncedRepos} repo${result.syncedRepos !== 1 ? 's' : ''}`);
@@ -367,7 +409,10 @@ export function Dashboard() {
   return (
     <div className="dashboard">
       <header className="dashboard__header">
-        <h1>Git Analytics Dashboard</h1>
+        <div className="dashboard__brand">
+          <h1>Git Analytics Dashboard</h1>
+          <SpaceSwitcher onManage={() => setView('spaces')} />
+        </div>
         <nav className="dashboard__nav">
           <button 
             type="button"
@@ -394,6 +439,12 @@ export function Dashboard() {
       </header>
 
       <main className="dashboard__content">
+        {view === 'spaces' && (
+          <section className="dashboard__section">
+            <SpacesManager />
+          </section>
+        )}
+
         {view === 'connect' && (
           <section className="dashboard__section">
             <h2>Connect Your Accounts</h2>

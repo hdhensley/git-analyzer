@@ -1,12 +1,7 @@
-import { ipcMain, BrowserWindow } from 'electron';
-import {
-  getAuthService,
-  getSnykService,
-  getGitService,
-  getDatabase,
-  getLocalGitService,
-  getUpdateService,
-} from './services';
+import { ipcMain, BrowserWindow, dialog, type IpcMainInvokeEvent } from 'electron';
+import { getUpdateService } from './services';
+import type { SpaceManager } from './spaces/space-manager';
+import type { SpaceContext } from './spaces/space-context';
 import type { FetchProgressCallback } from './services/git';
 import { auditPipelines, listAwsProfiles } from './services/pipeline-audit';
 import type {
@@ -23,19 +18,56 @@ import type {
   CloneProgress,
 } from '../shared/types';
 
-export function registerIpcHandlers(): void {
-  const authService = getAuthService();
-  const snykService = getSnykService();
-  const gitService = getGitService();
-  const db = getDatabase();
+/**
+ * Returns a stand-in for one of the active space's services. Every property
+ * access is resolved against whichever space is active at that moment, so
+ * handlers registered once at startup never hold a service from a space that
+ * has since been closed.
+ */
+function fromActiveSpace<K extends 'auth' | 'snyk' | 'git' | 'localGit' | 'db'>(
+  spaces: SpaceManager,
+  key: K
+): SpaceContext[K] {
+  return new Proxy({} as SpaceContext[K], {
+    get(_target, prop) {
+      const target = spaces.active()[key] as unknown as Record<string | symbol, unknown>;
+      const value = target[prop];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+export function registerIpcHandlers(spaces: SpaceManager, onSpacesChanged: () => void = () => {}): void {
+  // Registers a handler for long-running work that a space switch must not
+  // interrupt (the switch is refused while any such handler is running).
+  const handleBusy = (
+    channel: string,
+    label: string,
+    listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown // eslint-disable-line @typescript-eslint/no-explicit-any
+  ): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      const release = spaces.beginBusy(label);
+      try {
+        return await listener(event, ...args);
+      } finally {
+        release();
+      }
+    });
+  };
+
+  const authService = fromActiveSpace(spaces, 'auth');
+  const snykService = fromActiveSpace(spaces, 'snyk');
+  const gitService = fromActiveSpace(spaces, 'git');
+  const db = fromActiveSpace(spaces, 'db');
 
   // Auth handlers
-  ipcMain.handle('auth:authenticate', async (_event, provider: SCMProvider) => {
+  handleBusy('auth:authenticate', 'sign-in', async (_event, provider: SCMProvider) => {
     return authService.authenticate(provider);
   });
 
-  ipcMain.handle(
+  handleBusy(
     'auth:authenticateWithToken',
+    'sign-in',
     async (
       _event,
       provider: SCMProvider,
@@ -72,7 +104,7 @@ export function registerIpcHandlers(): void {
     return snykService.disconnect();
   });
 
-  ipcMain.handle('snyk:getHealth', async (_event, options?: { force?: boolean }) => {
+  handleBusy('snyk:getHealth', 'a Snyk refresh', async (_event, options?: { force?: boolean }) => {
     return snykService.getHealth(options);
   });
 
@@ -81,7 +113,7 @@ export function registerIpcHandlers(): void {
     return gitService.listRepositories(provider, page);
   });
 
-  ipcMain.handle('repositories:import', async (event, repos: Repository[]) => {
+  handleBusy('repositories:import', 'an import', async (event, repos: Repository[]) => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
     for (const repo of repos) {
@@ -133,7 +165,7 @@ export function registerIpcHandlers(): void {
     db.deleteRepository(repoId);
   });
 
-  ipcMain.handle('repositories:sync', async (event) => {
+  handleBusy('repositories:sync', 'a sync', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     // Local repos first: they're quick on-disk reads, so the bulk of the
     // progress bar moves immediately and the slow network-bound cloud repos
@@ -141,7 +173,7 @@ export function registerIpcHandlers(): void {
     const repos = db
       .getImportedRepositories()
       .sort((a, b) => Number(a.provider !== 'local') - Number(b.provider !== 'local'));
-    const localGit = getLocalGitService();
+    const localGit = fromActiveSpace(spaces, 'localGit');
     let processedRepos = 0;
     const result: SyncResult = {
       totalRepos: repos.length,
@@ -314,7 +346,7 @@ export function registerIpcHandlers(): void {
   });
 
   // Local repository handlers
-  const localGitService = getLocalGitService();
+  const localGitService = fromActiveSpace(spaces, 'localGit');
 
   ipcMain.handle('localRepositories:selectDirectory', async () => {
     return localGitService.selectDirectory();
@@ -338,7 +370,7 @@ export function registerIpcHandlers(): void {
     return updateService.checkForUpdates(true);
   });
 
-  ipcMain.handle('localRepositories:import', async (event, repositories: LocalRepositoryInfo[]) => {
+  handleBusy('localRepositories:import', 'an import', async (event, repositories: LocalRepositoryInfo[]) => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
     for (const repoInfo of repositories) {
@@ -443,6 +475,56 @@ export function registerIpcHandlers(): void {
     return localGitService.getBranchDivergence(repo.localPath);
   });
 
+  // Space handlers. Switching reloads the renderer so none of its state (sync
+  // timers, caches, selections) can carry over from the previous space.
+  ipcMain.handle('spaces:list', async () => spaces.listWithConnections());
+  ipcMain.handle('spaces:getActive', async () => spaces.getActive());
+  ipcMain.handle('spaces:create', async (_event, name: string, color?: string) => {
+    const created = spaces.create(name, color);
+    onSpacesChanged();
+    return created;
+  });
+  ipcMain.handle('spaces:rename', async (_event, id: string, name: string, color?: string) => {
+    const renamed = spaces.rename(id, name, color);
+    onSpacesChanged();
+    return renamed;
+  });
+  ipcMain.handle('spaces:switch', async (event, id: string) => {
+    spaces.switchTo(id);
+    onSpacesChanged();
+    BrowserWindow.fromWebContents(event.sender)?.webContents.reload();
+  });
+  ipcMain.handle('spaces:delete', async (_event, id: string) => {
+    await spaces.delete(id);
+    onSpacesChanged();
+  });
+  ipcMain.handle('spaces:duplicate', async (_event, id: string, name: string, color?: string) => {
+    const copy = await spaces.duplicate(id, name, color);
+    onSpacesChanged();
+    return copy;
+  });
+  ipcMain.handle('spaces:export', async (event, id: string) => {
+    const space = spaces.list().find((s) => s.id === id);
+    if (!space) throw new Error(`Unknown space: ${id}`);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: `Export "${space.name}"`,
+      defaultPath: `${space.name.replace(/[^\w.-]+/g, '-')}.db`,
+      filters: [{ name: 'SQLite database', extensions: ['db'] }],
+    };
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return null;
+    await spaces.exportTo(id, result.filePath);
+    return result.filePath;
+  });
+
+  ipcMain.handle('spaceSettings:get', async (_event, key: string) => db.getSetting(key));
+  ipcMain.handle('spaceSettings:set', async (_event, key: string, value: string | null) => {
+    db.setSetting(key, value);
+  });
+
   // Pipeline audit handlers (CDK pipeline + Snyk completeness, deployed-state check)
   ipcMain.handle('pipelineAudit:listProfiles', async () => {
     return listAwsProfiles();
@@ -487,8 +569,9 @@ export function registerIpcHandlers(): void {
     }
   );
 
-  ipcMain.handle(
+  handleBusy(
     'scmCompare:cloneRepositories',
+    'cloning',
     async (event, localFolder: string, repositories: ScmProjectRepository[]) => {
       const window = BrowserWindow.fromWebContents(event.sender);
 

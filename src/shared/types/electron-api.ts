@@ -26,6 +26,7 @@ import type {
   BranchDivergence,
   AwsProfile,
   RepoActivity,
+  SpaceSummary,
   PipelineAuditResult,
 } from './index';
 
@@ -48,6 +49,25 @@ export interface ElectronAPI {
     connect: (token: string, orgId?: string) => Promise<SnykConnectResult>;
     disconnect: () => Promise<void>;
     getHealth: (options?: { force?: boolean }) => Promise<SnykHealthResult>;
+  };
+
+  spaces: {
+    list: () => Promise<SpaceSummary[]>;
+    getActive: () => Promise<SpaceSummary>;
+    create: (name: string, color?: string) => Promise<SpaceSummary>;
+    rename: (id: string, name: string, color?: string) => Promise<SpaceSummary>;
+    /** Switches the active space; the window reloads once the switch succeeds. */
+    switchTo: (id: string) => Promise<void>;
+    delete: (id: string) => Promise<void>;
+    /** Copies a space's data (not its saved connections) into a new space. */
+    duplicate: (id: string, name: string, color?: string) => Promise<SpaceSummary>;
+    /** Saves a copy of the space's database; resolves to the path, or null if cancelled. */
+    export: (id: string) => Promise<string | null>;
+  };
+
+  spaceSettings: {
+    get: (key: string) => Promise<string | null>;
+    set: (key: string, value: string | null) => Promise<void>;
   };
 
   pipelineAudit: {

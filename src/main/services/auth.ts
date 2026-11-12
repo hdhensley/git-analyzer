@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
-import { getSecureStorage } from './secure-storage';
-import { getDatabase } from './database';
+import type { SecureStorage } from './secure-storage';
+import type { DatabaseService } from './database';
 import type { SCMProvider, AuthResult, AuthStatus, Credentials } from '../../shared/types';
 
 // OAuth configuration - these should be set via environment variables or config
@@ -27,8 +27,10 @@ const BITBUCKET_BASIC_TOKEN_PREFIX = 'bb_basic:';
 const BITBUCKET_BASIC_USER_TOKEN_PREFIX = 'bb_basic_user:';
 
 export class AuthService {
-  private secureStorage = getSecureStorage();
-  private db = getDatabase();
+  constructor(
+    private readonly secureStorage: SecureStorage,
+    private readonly db: DatabaseService
+  ) {}
 
   async authenticate(provider: SCMProvider): Promise<AuthResult> {
     const config = OAUTH_CONFIG[provider];
@@ -669,14 +671,4 @@ export class AuthService {
 
     return `Bearer ${credentials.accessToken}`;
   }
-}
-
-// Singleton instance
-let authInstance: AuthService | null = null;
-
-export function getAuthService(): AuthService {
-  if (!authInstance) {
-    authInstance = new AuthService();
-  }
-  return authInstance;
 }

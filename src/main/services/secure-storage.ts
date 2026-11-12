@@ -9,8 +9,16 @@ const SERVICE_NAME = 'git-analytics-dashboard';
 export type CredentialKey = SCMProvider | 'snyk';
 
 export class SecureStorage {
+  /**
+   * @param namespace Optional prefix that isolates this instance's keychain
+   *   entries (used to give each space its own credentials). When omitted the
+   *   account names are the legacy, un-prefixed ones.
+   */
+  constructor(private readonly namespace?: string) {}
+
   private getAccountName(provider: CredentialKey): string {
-    return `${provider}-credentials`;
+    const base = `${provider}-credentials`;
+    return this.namespace ? `${this.namespace}:${base}` : base;
   }
 
   async setCredentials(provider: CredentialKey, credentials: Credentials): Promise<void> {
@@ -56,18 +64,15 @@ export class SecureStorage {
     return keytar.deletePassword(SERVICE_NAME, account);
   }
 
+  /** Removes the stored credentials for every provider in this namespace. */
+  async deleteAllCredentials(): Promise<void> {
+    for (const key of ['github', 'bitbucket', 'snyk'] as CredentialKey[]) {
+      await this.deleteCredentials(key);
+    }
+  }
+
   async hasCredentials(provider: CredentialKey): Promise<boolean> {
     const credentials = await this.getCredentials(provider);
     return credentials !== null;
   }
-}
-
-// Singleton instance
-let storageInstance: SecureStorage | null = null;
-
-export function getSecureStorage(): SecureStorage {
-  if (!storageInstance) {
-    storageInstance = new SecureStorage();
-  }
-  return storageInstance;
 }

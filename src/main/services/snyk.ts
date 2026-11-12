@@ -1,5 +1,5 @@
-import { getSecureStorage } from './secure-storage';
-import { getDatabase } from './database';
+import type { SecureStorage } from './secure-storage';
+import type { DatabaseService } from './database';
 import type {
   Credentials,
   SnykStatus,
@@ -49,8 +49,11 @@ interface SnykIssue {
  * `Authorization: token <token>`, which is what the REST API expects.
  */
 export class SnykService {
-  private secureStorage = getSecureStorage();
-  private db = getDatabase();
+  constructor(
+    private readonly secureStorage: SecureStorage,
+    private readonly db: DatabaseService
+  ) {}
+
   // Guards against overlapping fetches (e.g. a forced refresh landing while a
   // background refresh is already in flight).
   private inFlight: Promise<SnykHealthResult> | null = null;
@@ -438,14 +441,4 @@ export class SnykService {
       },
     };
   }
-}
-
-// Singleton instance
-let snykInstance: SnykService | null = null;
-
-export function getSnykService(): SnykService {
-  if (!snykInstance) {
-    snykInstance = new SnykService();
-  }
-  return snykInstance;
 }

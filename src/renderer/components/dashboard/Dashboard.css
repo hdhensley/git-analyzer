@@ -14,6 +14,13 @@
   border-bottom: 1px solid var(--border-color, #e5e7eb);
   background: white;
   -webkit-app-region: drag;
+  border-top: 3px solid var(--space-color, transparent); /* active space accent */
+}
+
+.dashboard__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .dashboard__header h1 {

@@ -84,6 +84,12 @@ export class DatabaseService {
         custom_end_date DATETIME
       );
 
+      -- Per-space UI/state settings (last sync time, selected AWS profile...).
+      CREATE TABLE IF NOT EXISTS space_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
       -- Cached Snyk issue-count result (single row). The payload is the full
       -- SnykHealthResult JSON; fetched_at drives TTL-based refresh.
       CREATE TABLE IF NOT EXISTS snyk_cache (
@@ -480,6 +486,24 @@ export class DatabaseService {
   }
 
   // Data management
+  getSetting(key: string): string | null {
+    const row = this.db.prepare('SELECT value FROM space_settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined;
+    return row ? row.value : null;
+  }
+
+  /** Stores a setting; a null value removes it. */
+  setSetting(key: string, value: string | null): void {
+    if (value === null) {
+      this.db.prepare('DELETE FROM space_settings WHERE key = ?').run(key);
+    } else {
+      this.db
+        .prepare('INSERT OR REPLACE INTO space_settings (key, value) VALUES (?, ?)')
+        .run(key, value);
+    }
+  }
+
   clearAllData(): void {
     this.db.exec(`
       DELETE FROM commits;
@@ -516,24 +540,20 @@ export class DatabaseService {
     stmt.run(providerId);
   }
 
+  /**
+   * Writes a consistent copy of a database file to `dest` using SQLite's online
+   * backup, so WAL contents are included (a plain file copy would miss them).
+   */
+  static async copyFile(src: string, dest: string): Promise<void> {
+    const source = new Database(src, { fileMustExist: true });
+    try {
+      await source.backup(dest);
+    } finally {
+      source.close();
+    }
+  }
+
   close(): void {
     this.db.close();
-  }
-}
-
-// Singleton instance
-let dbInstance: DatabaseService | null = null;
-
-export function getDatabase(): DatabaseService {
-  if (!dbInstance) {
-    dbInstance = new DatabaseService();
-  }
-  return dbInstance;
-}
-
-export function closeDatabase(): void {
-  if (dbInstance) {
-    dbInstance.close();
-    dbInstance = null;
   }
 }

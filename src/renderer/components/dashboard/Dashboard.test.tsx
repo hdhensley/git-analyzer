@@ -155,6 +155,20 @@ describe('Dashboard', () => {
           listProfiles: vi.fn(),
           run: vi.fn(),
         },
+        spaces: {
+          list: vi.fn(),
+          getActive: vi.fn(),
+          create: vi.fn(),
+          rename: vi.fn(),
+          switchTo: vi.fn(),
+          delete: vi.fn(),
+          duplicate: vi.fn(),
+          export: vi.fn(),
+        },
+        spaceSettings: {
+          get: vi.fn(),
+          set: vi.fn(),
+        },
         repositories: {
           list: vi.fn(),
           import: vi.fn(),
@@ -226,6 +240,20 @@ describe('Dashboard', () => {
         pipelineAudit: {
           listProfiles: vi.fn(),
           run: vi.fn(),
+        },
+        spaces: {
+          list: vi.fn(),
+          getActive: vi.fn(),
+          create: vi.fn(),
+          rename: vi.fn(),
+          switchTo: vi.fn(),
+          delete: vi.fn(),
+          duplicate: vi.fn(),
+          export: vi.fn(),
+        },
+        spaceSettings: {
+          get: vi.fn(),
+          set: vi.fn(),
         },
         repositories: {
           list: vi.fn(),

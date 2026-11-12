@@ -1,10 +1,12 @@
 import 'dotenv/config';
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, dialog, type MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
-import { closeDatabase, getUpdateService } from './services';
+import { getUpdateService } from './services';
+import { SpaceManager } from './spaces/space-manager';
 
 let mainWindow: BrowserWindow | null = null;
+let spaces: SpaceManager;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -48,6 +50,33 @@ function createWindow(): void {
   });
 }
 
+// Spaces menu: one radio item per space with Cmd/Ctrl+1..9 to switch quickly.
+function buildSpacesMenu(): MenuItemConstructorOptions {
+  const items: MenuItemConstructorOptions[] = spaces.list().map((space, index) => ({
+    label: space.name,
+    type: 'radio',
+    checked: space.active,
+    ...(index < 9 ? { accelerator: `CmdOrCtrl+${index + 1}` } : {}),
+    click: () => {
+      if (space.active) return;
+      try {
+        spaces.switchTo(space.id);
+        buildAppMenu();
+        mainWindow?.webContents.reload();
+      } catch (error) {
+        // Most likely refused because a sync or import is running.
+        dialog.showMessageBox({
+          type: 'warning',
+          message: 'Could not switch spaces',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+        buildAppMenu(); // Put the radio selection back on the active space.
+      }
+    },
+  }));
+  return { label: 'Spaces', submenu: items };
+}
+
 function buildAppMenu(): void {
   const template: MenuItemConstructorOptions[] = [];
 
@@ -62,6 +91,7 @@ function buildAppMenu(): void {
   template.push(
     { role: 'fileMenu' },
     { role: 'editMenu' },
+    buildSpacesMenu(),
     { role: 'viewMenu' },
     { role: 'windowMenu' },
     {
@@ -85,7 +115,8 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers();
+  spaces = new SpaceManager(app.getPath('userData'));
+  registerIpcHandlers(spaces, buildAppMenu);
   buildAppMenu();
   createWindow();
 
@@ -113,5 +144,5 @@ app.on('window-all-closed', () => {
 });
 
 app.on('quit', () => {
-  closeDatabase();
+  spaces?.close();
 });

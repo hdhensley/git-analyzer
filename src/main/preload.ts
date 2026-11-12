@@ -26,6 +26,22 @@ const electronAPI: ElectronAPI = {
     getHealth: (options) => ipcRenderer.invoke('snyk:getHealth', options),
   },
 
+  spaces: {
+    list: () => ipcRenderer.invoke('spaces:list'),
+    getActive: () => ipcRenderer.invoke('spaces:getActive'),
+    create: (name, color) => ipcRenderer.invoke('spaces:create', name, color),
+    rename: (id, name, color) => ipcRenderer.invoke('spaces:rename', id, name, color),
+    switchTo: (id) => ipcRenderer.invoke('spaces:switch', id),
+    delete: (id) => ipcRenderer.invoke('spaces:delete', id),
+    duplicate: (id, name, color) => ipcRenderer.invoke('spaces:duplicate', id, name, color),
+    export: (id) => ipcRenderer.invoke('spaces:export', id),
+  },
+
+  spaceSettings: {
+    get: (key) => ipcRenderer.invoke('spaceSettings:get', key),
+    set: (key, value) => ipcRenderer.invoke('spaceSettings:set', key, value),
+  },
+
   pipelineAudit: {
     listProfiles: () => ipcRenderer.invoke('pipelineAudit:listProfiles'),
     run: (options) => ipcRenderer.invoke('pipelineAudit:run', options),
