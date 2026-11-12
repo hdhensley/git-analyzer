@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ChartWidgetProps } from './types';
 import './BusFactorWidget.css';
 
@@ -46,42 +46,63 @@ export function BusFactorWidget({ commits, authorGrouping }: ChartWidgetProps) {
         busFactor,
         contributors: sorted.slice(0, 5),
       };
-    }).sort((a, b) => a.busFactor - b.busFactor);
+    }).sort((a, b) => a.busFactor - b.busFactor || b.topPercent - a.topPercent);
   }, [commits, groupByName]);
+
+  const [riskyOnly, setRiskyOnly] = useState(false);
+  const riskyCount = repos.filter((r) => r.busFactor <= 1).length;
+  const visible = riskyOnly ? repos.filter((r) => r.busFactor <= 1) : repos;
 
   if (commits.length === 0) {
     return <div className="bus-factor bus-factor--empty">No commits match the current filters</div>;
   }
 
+  const badgeClass = (bf: number) =>
+    bf <= 1 ? 'bus-factor__badge--danger' : bf <= 2 ? 'bus-factor__badge--warn' : 'bus-factor__badge--ok';
+
   return (
     <div className="bus-factor">
-      {repos.map(r => (
-        <div key={r.repoId} className={`bus-factor__repo ${r.busFactor <= 1 ? 'bus-factor__repo--risk' : ''}`}>
-          <div className="bus-factor__repo-header">
-            <span className="bus-factor__repo-name">{r.repoName}</span>
-            <span className={`bus-factor__badge ${r.busFactor <= 1 ? 'bus-factor__badge--danger' : r.busFactor <= 2 ? 'bus-factor__badge--warn' : 'bus-factor__badge--ok'}`}>
-              Bus factor: {r.busFactor}
-            </span>
-          </div>
-          <div className="bus-factor__bar-stack">
-            {r.contributors.map(c => (
-              <div
-                key={c.name}
-                className="bus-factor__segment"
-                style={{ width: `${c.percent}%` }}
-                title={`${c.name}: ${c.count} commits (${c.percent}%)`}
-              />
-            ))}
-          </div>
-          <div className="bus-factor__contributors">
-            {r.contributors.map(c => (
-              <span key={c.name} className="bus-factor__contributor">
-                {c.name} <span className="bus-factor__contributor-pct">{c.percent}%</span>
-              </span>
-            ))}
-          </div>
+      <div className="bus-factor__summary">
+        <span>
+          <strong>{riskyCount}</strong> of {repos.length} repositories have a bus factor of 1
+          (one person wrote more than half the commits in this period).
+        </span>
+        <label className="bus-factor__toggle">
+          <input type="checkbox" checked={riskyOnly} onChange={(e) => setRiskyOnly(e.target.checked)} />
+          Bus factor 1 only
+        </label>
+      </div>
+      <div className="bus-factor__table" role="table" aria-label="Bus factor by repository">
+        <div className="bus-factor__row bus-factor__row--head" role="row">
+          <span role="columnheader">Repository</span>
+          <span role="columnheader" title="Fewest contributors needed to cover more than 50% of commits">Bus factor</span>
+          <span role="columnheader">Share of commits</span>
+          <span role="columnheader">Top contributor</span>
+          <span role="columnheader" className="bus-factor__num">Commits</span>
         </div>
-      ))}
+        {visible.map((r) => (
+          <div
+            key={r.repoId}
+            className="bus-factor__row"
+            role="row"
+            title={r.contributors.map((c) => `${c.name}: ${c.count} commits (${c.percent}%)`).join('\n')}
+          >
+            <span className="bus-factor__repo-name" role="cell">{r.repoName}</span>
+            <span role="cell">
+              <span className={`bus-factor__badge ${badgeClass(r.busFactor)}`}>{r.busFactor}</span>
+            </span>
+            <span className="bus-factor__bar-stack" role="cell">
+              {r.contributors.map((c) => (
+                <span key={c.name} className="bus-factor__segment" style={{ width: `${c.percent}%` }} />
+              ))}
+            </span>
+            <span className="bus-factor__top" role="cell">
+              {r.topContributor} <span className="bus-factor__contributor-pct">{r.topPercent}%</span>
+            </span>
+            <span className="bus-factor__num" role="cell">{r.totalCommits}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
