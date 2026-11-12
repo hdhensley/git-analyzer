@@ -1,7 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+
+// SpaceManager imports the credential store, which loads the native keytar
+// module. CI runners have no libsecret, so keep the real module out of this
+// test. Every test injects its own credential hooks, so the stub must never run.
+vi.mock('keytar', () => {
+  const unexpected = () => {
+    throw new Error('Unexpected keychain access in a SpaceManager test');
+  };
+  return { default: { setPassword: unexpected, getPassword: unexpected, deletePassword: unexpected } };
+});
+
 import { SpaceManager, type SpaceContextFactory } from './space-manager';
 
 describe('SpaceManager', () => {
