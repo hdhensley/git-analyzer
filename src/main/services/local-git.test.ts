@@ -14,7 +14,7 @@ function makeScmRepo(name: string): ScmProjectRepository {
     defaultBranch: 'main',
     url: `https://bitbucket.org/team/${name}`,
     httpsCloneUrl: `https://bitbucket.org/team/${name}.git`,
-    sshCloneUrl: `git@bitbucket.org:team/${name}.git`,
+    sshCloneUrl: `git@ssh.bitbucket.org:team/${name}.git`,
   };
 }
 

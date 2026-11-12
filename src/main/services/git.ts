@@ -357,7 +357,7 @@ export class GitService {
     } else {
       // Bitbucket browser URL is https://bitbucket.org/{workspace}/{slug}
       httpsCloneUrl = `https://bitbucket.org/${repo.owner}/${repo.name}.git`;
-      sshCloneUrl = `git@bitbucket.org:${repo.owner}/${repo.name}.git`;
+      sshCloneUrl = `git@ssh.bitbucket.org:${repo.owner}/${repo.name}.git`;
     }
 
     return {
