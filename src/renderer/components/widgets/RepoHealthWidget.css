@@ -96,3 +96,21 @@
 .repo-health__staleness--recent { color: #d97706; }
 .repo-health__staleness--stale { color: #ea580c; }
 .repo-health__staleness--dead { color: #dc2626; }
+
+/* Pipeline audit (CDK pipeline Snyk completeness + deployed-state check) */
+.repo-health__pipeline-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.repo-health__pipeline-check { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; white-space: nowrap; }
+.repo-health__pipeline-select {
+  padding: 0.3rem 0.4rem; border: 1px solid var(--color-border, #d1d5db); border-radius: 6px;
+  background: var(--bg-primary, #fff); color: var(--text-primary, #1f2937); font-size: 0.75rem;
+  max-width: 14rem;
+}
+.repo-health__pipe { font-weight: 500; white-space: nowrap; cursor: help; color: var(--color-muted, #9ca3af); }
+.repo-health__pipe--ok,
+.repo-health__deploy--in-sync { color: #16a34a; }
+.repo-health__pipe--partial,
+.repo-health__deploy--not-deployed { color: #d97706; }
+.repo-health__pipe--none,
+.repo-health__deploy--out-of-sync,
+.repo-health__deploy--error { color: #dc2626; font-weight: 700; }
+.repo-health__deploy--unknown { color: #ea580c; }

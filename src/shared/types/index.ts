@@ -47,6 +47,66 @@ export interface SnykHealthResult {
   };
 }
 
+// Pipeline audit types (CDK CodePipeline + Snyk scanning completeness)
+
+// An AWS credentials/config profile the user can pick for the deployed-state check.
+export interface AwsProfile {
+  name: string;
+  region?: string; // Default region configured on the profile, when set
+  isSso: boolean;
+}
+
+// Static classification of the Snyk step in the pipeline stack found in source.
+//   ok      full standard: monitor + SCA test + code test --report, org, http url
+//   partial has some Snyk scanning but is missing parts (see `snykIssues`)
+//   none    pipeline stack exists but has no Snyk step
+//   nopipe  no pipeline stack in the repository
+export type PipelineSnykStatus = 'ok' | 'partial' | 'none' | 'nopipe';
+
+// Result of comparing the pipeline in code with the one deployed in AWS.
+//   not-checked  no AWS profile selected
+//   in-sync      deployed pipeline + Snyk buildspec match the code
+//   out-of-sync  deployed pipeline differs from the code (see `deployedIssues`)
+//   not-deployed no pipeline with that name exists in the account/region
+//   no-env       the profile's account has no matching environment in cdk.json
+//   unknown      pipeline name could not be resolved from source
+//   error        AWS call failed (see `deployedError`)
+export type PipelineDeployStatus =
+  | 'not-checked'
+  | 'in-sync'
+  | 'out-of-sync'
+  | 'not-deployed'
+  | 'no-env'
+  | 'unknown'
+  | 'error';
+
+export interface PipelineAuditEntry {
+  repoId: string;
+  repoName: string;
+  stackFile?: string; // Path of the pipeline stack relative to the repository
+  pipelineName?: string;
+  snykStatus: PipelineSnykStatus;
+  snykIssues: string[];
+  scaGating: 'gating' | 'non-gating' | 'n/a';
+  snykOrg?: string;
+  hasGitSecrets: boolean;
+  deployStatus: PipelineDeployStatus;
+  deployedIssues: string[];
+  deployedError?: string;
+  // Environment resolved from cdk.json for the selected profile's account.
+  envKey?: string;
+  region?: string;
+}
+
+export interface PipelineAuditResult {
+  auditedAt: string;
+  profile?: string;
+  accountId?: string;
+  // Set when the profile's credentials could not be used at all.
+  credentialsError?: string;
+  entries: PipelineAuditEntry[];
+}
+
 // Extended to include 'local' as a repository source
 export type RepositorySource = 'github' | 'bitbucket' | 'local';
 
@@ -286,7 +346,7 @@ export interface ScmProjectRepository {
   defaultBranch: string;
   url: string; // Browser URL
   httpsCloneUrl: string; // Unauthenticated https clone URL (credentials added in main at clone time)
-  sshCloneUrl: string; // SSH clone URL (e.g. git@bitbucket.org:workspace/repo.git)
+  sshCloneUrl: string; // SSH clone URL (e.g. git@ssh.bitbucket.org:workspace/repo.git)
 }
 
 // Result of comparing a group's repositories against a local folder.

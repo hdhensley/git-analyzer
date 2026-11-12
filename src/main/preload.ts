@@ -26,6 +26,11 @@ const electronAPI: ElectronAPI = {
     getHealth: (options) => ipcRenderer.invoke('snyk:getHealth', options),
   },
 
+  pipelineAudit: {
+    listProfiles: () => ipcRenderer.invoke('pipelineAudit:listProfiles'),
+    run: (options) => ipcRenderer.invoke('pipelineAudit:run', options),
+  },
+
   repositories: {
     list: (provider, page) => ipcRenderer.invoke('repositories:list', provider, page),
     import: (repos) => ipcRenderer.invoke('repositories:import', repos),

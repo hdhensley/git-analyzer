@@ -8,6 +8,7 @@ import {
   getUpdateService,
 } from './services';
 import type { FetchProgressCallback } from './services/git';
+import { auditPipelines, listAwsProfiles } from './services/pipeline-audit';
 import type {
   SCMProvider,
   Repository,
@@ -437,6 +438,23 @@ export function registerIpcHandlers(): void {
     }
     return localGitService.getBranchDivergence(repo.localPath);
   });
+
+  // Pipeline audit handlers (CDK pipeline + Snyk completeness, deployed-state check)
+  ipcMain.handle('pipelineAudit:listProfiles', async () => {
+    return listAwsProfiles();
+  });
+
+  ipcMain.handle(
+    'pipelineAudit:run',
+    async (_event, options: { repoIds: string[]; profile?: string }) => {
+      const wanted = new Set(options.repoIds);
+      const repos = db
+        .getImportedRepositories()
+        .filter((r) => wanted.has(r.id) && r.provider === 'local' && r.localPath)
+        .map((r) => ({ id: r.id, name: r.name, localPath: r.localPath as string }));
+      return auditPipelines(repos, options.profile || undefined);
+    }
+  );
 
   // SCM-to-local comparison handlers
   // Project groups come from the local cache (imported/synced repositories) so

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { ChartWidgetProps } from './types';
-import type { SnykRepoIssueCounts, SnykHealthResult, BranchDivergence } from '../../../shared/types';
+import type {
+  SnykRepoIssueCounts,
+  SnykHealthResult,
+  BranchDivergence,
+  AwsProfile,
+  PipelineAuditEntry,
+  PipelineAuditResult,
+} from '../../../shared/types';
 import { useElectronAPI } from '../../hooks';
 import './RepoHealthWidget.css';
 
@@ -26,7 +33,9 @@ type SortKey =
   | 'defaultBranch'
   | 'uniqueContributors'
   | 'critical'
-  | 'high';
+  | 'high'
+  | 'pipeline'
+  | 'deployed';
 
 type SortDir = 'asc' | 'desc';
 
@@ -42,6 +51,44 @@ const REPO_COL_KEY_STEP = 16;
 const OTHER_COL_MIN = 72;
 const COL_GAP = 8;
 const ROW_PADDING_X = 24;
+
+const AWS_PROFILE_STORAGE_KEY = 'repoHealth.awsProfile';
+
+// Higher rank = bigger problem; used for sorting, the "problems only" filter,
+// and picking the worst entry when a repo has several pipeline stacks.
+const PIPELINE_RANK: Record<PipelineAuditEntry['snykStatus'], number> = {
+  none: 3,
+  partial: 2,
+  ok: 0,
+  nopipe: -1,
+};
+const DEPLOY_RANK: Record<PipelineAuditEntry['deployStatus'], number> = {
+  'out-of-sync': 4,
+  'not-deployed': 3,
+  error: 2,
+  unknown: 1,
+  'in-sync': 0,
+  'no-env': -1,
+  'not-checked': -1,
+};
+const PIPELINE_LABEL: Record<PipelineAuditEntry['snykStatus'], string> = {
+  ok: 'OK',
+  partial: 'Partial',
+  none: 'No Snyk',
+  nopipe: '—',
+};
+const DEPLOY_LABEL: Record<PipelineAuditEntry['deployStatus'], string> = {
+  'in-sync': 'In sync',
+  'out-of-sync': 'Out of sync',
+  'not-deployed': 'Not deployed',
+  'no-env': 'n/a',
+  unknown: 'Unknown',
+  error: 'Error',
+  'not-checked': '—',
+};
+
+const isPipelineProblem = (e: PipelineAuditEntry) => PIPELINE_RANK[e.snykStatus] > 0;
+const isDeployProblem = (e: PipelineAuditEntry) => DEPLOY_RANK[e.deployStatus] > 0;
 
 const clampRepoWidth = (w: number) => Math.min(REPO_COL_MAX, Math.max(REPO_COL_MIN, Math.round(w)));
 
@@ -166,6 +213,107 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     loadSnyk(false);
   }, [loadSnyk]);
 
+  // Pipeline audit: static check of the CDK pipeline stack (Snyk completeness)
+  // runs automatically for local repos; the deployed-state comparison needs an
+  // AWS profile and is run on demand.
+  const [awsProfiles, setAwsProfiles] = useState<AwsProfile[]>([]);
+  const [awsProfile, setAwsProfile] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem(AWS_PROFILE_STORAGE_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const [audit, setAudit] = useState<PipelineAuditResult | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [onlyProblems, setOnlyProblems] = useState(false);
+
+  const localRepoIdsKey = useMemo(
+    () =>
+      repositories
+        .filter((r) => r.provider === 'local')
+        .map((r) => r.id)
+        .sort()
+        .join('|'),
+    [repositories]
+  );
+
+  const runAudit = useCallback(
+    async (profile: string) => {
+      if (!api || !localRepoIdsKey) return;
+      try {
+        setAuditLoading(true);
+        setAuditError(null);
+        const result = await api.pipelineAudit.run({
+          repoIds: localRepoIdsKey.split('|'),
+          profile: profile || undefined,
+        });
+        setAudit(result);
+      } catch (err) {
+        setAuditError(err instanceof Error ? err.message : 'Pipeline audit failed');
+      } finally {
+        setAuditLoading(false);
+      }
+    },
+    [api, localRepoIdsKey]
+  );
+
+  useEffect(() => {
+    if (!api?.pipelineAudit) return;
+    api.pipelineAudit
+      .listProfiles()
+      .then(setAwsProfiles)
+      .catch(() => setAwsProfiles([]));
+  }, [api]);
+
+  // Source-only audit on mount / when the local repo set changes.
+  useEffect(() => {
+    if (api?.pipelineAudit) runAudit('');
+  }, [api, runAudit]);
+
+  useEffect(() => {
+    try {
+      if (awsProfile) window.localStorage.setItem(AWS_PROFILE_STORAGE_KEY, awsProfile);
+      else window.localStorage.removeItem(AWS_PROFILE_STORAGE_KEY);
+    } catch {
+      // Storage unavailable; selection just won't persist.
+    }
+  }, [awsProfile]);
+
+  // Worst pipeline entry per repo (a repo can have several pipeline stacks).
+  const pipelineByRepo = useMemo(() => {
+    const map = new Map<string, { worst: PipelineAuditEntry; all: PipelineAuditEntry[] }>();
+    for (const e of audit?.entries ?? []) {
+      const cur = map.get(e.repoId);
+      if (!cur) {
+        map.set(e.repoId, { worst: e, all: [e] });
+        continue;
+      }
+      cur.all.push(e);
+      const score = (x: PipelineAuditEntry) =>
+        Math.max(PIPELINE_RANK[x.snykStatus], DEPLOY_RANK[x.deployStatus]);
+      if (score(e) > score(cur.worst)) cur.worst = e;
+    }
+    return map;
+  }, [audit]);
+
+  const showPipelineCol = useMemo(
+    () => (audit?.entries ?? []).some((e) => e.snykStatus !== 'nopipe'),
+    [audit]
+  );
+  const showDeployCol = showPipelineCol && Boolean(audit?.profile) && !audit?.credentialsError;
+
+  const pipelineSummary = useMemo(() => {
+    let snykProblems = 0;
+    let deployProblems = 0;
+    for (const { all } of pipelineByRepo.values()) {
+      if (all.some(isPipelineProblem)) snykProblems++;
+      if (all.some(isDeployProblem)) deployProblems++;
+    }
+    return { snykProblems, deployProblems };
+  }, [pipelineByRepo]);
+
   // Repo id -> default branch / provider, sourced from repository metadata.
   const defaultBranchById = useMemo(() => {
     const map = new Map<string, string>();
@@ -269,6 +417,14 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           return lookupSnyk(r.repoName)?.critical ?? 0;
         case 'high':
           return lookupSnyk(r.repoName)?.high ?? 0;
+        case 'pipeline':
+          return pipelineByRepo.get(r.repoId)
+            ? Math.max(...pipelineByRepo.get(r.repoId)!.all.map((e) => PIPELINE_RANK[e.snykStatus]))
+            : -2;
+        case 'deployed':
+          return pipelineByRepo.get(r.repoId)
+            ? Math.max(...pipelineByRepo.get(r.repoId)!.all.map((e) => DEPLOY_RANK[e.deployStatus]))
+            : -2;
         default:
           return r[sortKey];
       }
@@ -281,7 +437,15 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
       }
       return ((av as number) - (bv as number)) * dir;
     });
-  }, [repos, sortKey, sortDir, lookupSnyk]);
+  }, [repos, sortKey, sortDir, lookupSnyk, pipelineByRepo]);
+
+  const visibleRepos = useMemo<RepoHealth[]>(() => {
+    if (!onlyProblems || !audit) return sortedRepos;
+    return sortedRepos.filter((r) => {
+      const p = pipelineByRepo.get(r.repoId);
+      return p ? p.all.some((e) => isPipelineProblem(e) || isDeployProblem(e)) : false;
+    });
+  }, [sortedRepos, onlyProblems, audit, pipelineByRepo]);
 
   if (commits.length === 0) {
     return <div className="repo-health repo-health--empty">No commits match the current filters</div>;
@@ -295,7 +459,8 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
 
   // Column template is driven by CSS variables so the repository column can be
   // resized without touching the other columns' definitions.
-  const otherColCount = snykConnected ? 8 : 6;
+  const otherColCount =
+    (snykConnected ? 8 : 6) + (showPipelineCol ? 1 : 0) + (showDeployCol ? 1 : 0);
   const repoColMin = repoColWidth ?? REPO_COL_DEFAULT;
   const tableStyle = {
     '--repo-col': repoColWidth !== null ? `${repoColWidth}px` : `minmax(${REPO_COL_DEFAULT}px, 3fr)`,
@@ -349,6 +514,70 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           </button>
         </div>
       )}
+      {api?.pipelineAudit && localRepoIdsKey && (
+        <div className="repo-health__snyk-bar repo-health__pipeline-bar">
+          <span className="repo-health__snyk-meta">
+            {auditLoading ? (
+              'Auditing pipelines…'
+            ) : auditError ? (
+              <span className="repo-health__snyk-error-text">Pipelines: {auditError}</span>
+            ) : audit?.credentialsError ? (
+              <span className="repo-health__snyk-error-text">AWS: {audit.credentialsError}</span>
+            ) : showPipelineCol ? (
+              <>
+                Pipelines: {pipelineSummary.snykProblems} with incomplete Snyk
+                {showDeployCol && (
+                  <>
+                    {' · '}
+                    {pipelineSummary.deployProblems} out of sync / not deployed (account{' '}
+                    {audit?.accountId})
+                  </>
+                )}
+              </>
+            ) : (
+              'No CDK pipeline stacks found in local repositories'
+            )}
+          </span>
+          <span className="repo-health__pipeline-controls">
+            <label className="repo-health__pipeline-check">
+              <input
+                type="checkbox"
+                checked={onlyProblems}
+                onChange={(e) => setOnlyProblems(e.target.checked)}
+              />
+              Problems only
+            </label>
+            <select
+              className="repo-health__pipeline-select"
+              aria-label="AWS profile for deployed pipeline check"
+              value={awsProfile}
+              onChange={(e) => setAwsProfile(e.target.value)}
+              disabled={auditLoading}
+            >
+              <option value="">AWS profile: none (source only)</option>
+              {awsProfiles.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                  {p.isSso ? ' (SSO)' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="repo-health__snyk-refresh"
+              onClick={() => runAudit(awsProfile)}
+              disabled={auditLoading}
+              title={
+                awsProfile
+                  ? 'Compare pipelines in code with those deployed in the selected AWS account'
+                  : 'Re-scan pipeline stacks in source'
+              }
+            >
+              {auditLoading ? '↻ Checking…' : awsProfile ? '↻ Check deployed' : '↻ Rescan'}
+            </button>
+          </span>
+        </div>
+      )}
       <div className={gridClass} style={tableStyle}>
         <div className="repo-health__header-row">
           <div className="repo-health__repo-header" ref={repoHeaderRef}>
@@ -377,11 +606,14 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           <button type="button" className="repo-health__sort" onClick={() => toggleSort('defaultBranch')}>Default Branch{sortArrow('defaultBranch')}</button>
           <span title="develop ahead/behind main (local repositories only)">Dev vs Main</span>
           <button type="button" className="repo-health__sort" onClick={() => toggleSort('uniqueContributors')}>Contributors{sortArrow('uniqueContributors')}</button>
+          {showPipelineCol && <button type="button" className="repo-health__sort" title="Snyk scanning completeness in the CDK pipeline stack (monitor, SCA, SAST)" onClick={() => toggleSort('pipeline')}>Pipeline Snyk{sortArrow('pipeline')}</button>}
+          {showDeployCol && <button type="button" className="repo-health__sort" title="Is the deployed CodePipeline the one in code?" onClick={() => toggleSort('deployed')}>Deployed{sortArrow('deployed')}</button>}
           {snykConnected && <button type="button" className="repo-health__sort" title="Snyk critical open issues" onClick={() => toggleSort('critical')}>Critical{sortArrow('critical')}</button>}
           {snykConnected && <button type="button" className="repo-health__sort" title="Snyk high open issues" onClick={() => toggleSort('high')}>High{sortArrow('high')}</button>}
         </div>
-        {sortedRepos.map(r => {
+        {visibleRepos.map(r => {
           const snyk = snykConnected ? lookupSnyk(r.repoName) : undefined;
+          const pipe = pipelineByRepo.get(r.repoId);
           return (
             <div key={r.repoId} className="repo-health__row">
               <span
@@ -426,6 +658,44 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
                 )}
               </span>
               <span>{r.uniqueContributors}</span>
+              {showPipelineCol && (
+                <span
+                  className={`repo-health__pipe repo-health__pipe--${pipe ? pipe.worst.snykStatus : 'nopipe'}`}
+                  title={
+                    pipe
+                      ? pipe.all
+                          .map(
+                            (e) =>
+                              `${e.stackFile ?? ''}${e.snykOrg ? ` (org ${e.snykOrg}, SCA ${e.scaGating})` : ''}\n` +
+                              (e.snykIssues.length ? e.snykIssues.map((i) => `• ${i}`).join('\n') : 'Complete')
+                          )
+                          .join('\n\n')
+                      : 'Not a local repository'
+                  }
+                >
+                  {pipe ? PIPELINE_LABEL[pipe.worst.snykStatus] : '—'}
+                </span>
+              )}
+              {showDeployCol && (
+                <span
+                  className={`repo-health__pipe repo-health__deploy--${pipe ? pipe.worst.deployStatus : 'not-checked'}`}
+                  title={
+                    pipe
+                      ? pipe.all
+                          .map((e) => {
+                            const where = [e.pipelineName, e.envKey, e.region].filter(Boolean).join(' · ');
+                            const detail = e.deployedError
+                              ? e.deployedError
+                              : e.deployedIssues.map((i) => `• ${i}`).join('\n');
+                            return [where, detail].filter(Boolean).join('\n');
+                          })
+                          .join('\n\n')
+                      : ''
+                  }
+                >
+                  {pipe ? DEPLOY_LABEL[pipe.worst.deployStatus] : '—'}
+                </span>
+              )}
               {snykConnected && (
                 <span className={`repo-health__sev repo-health__sev--critical ${snyk && snyk.critical > 0 ? 'repo-health__sev--active' : ''}`}>
                   {snyk ? snyk.critical : 0}

@@ -24,6 +24,8 @@ import type {
   SnykConnectResult,
   SnykHealthResult,
   BranchDivergence,
+  AwsProfile,
+  PipelineAuditResult,
 } from './index';
 
 export interface ElectronAPI {
@@ -45,6 +47,11 @@ export interface ElectronAPI {
     connect: (token: string, orgId?: string) => Promise<SnykConnectResult>;
     disconnect: () => Promise<void>;
     getHealth: (options?: { force?: boolean }) => Promise<SnykHealthResult>;
+  };
+
+  pipelineAudit: {
+    listProfiles: () => Promise<AwsProfile[]>;
+    run: (options: { repoIds: string[]; profile?: string }) => Promise<PipelineAuditResult>;
   };
 
   repositories: {

@@ -127,6 +127,10 @@ describe('AuthStatus', () => {
           disconnect: vi.fn(),
           getHealth: vi.fn(),
         },
+        pipelineAudit: {
+          listProfiles: vi.fn(),
+          run: vi.fn(),
+        },
         updates: {
           check: vi.fn(),
         },
@@ -196,6 +200,10 @@ describe('AuthStatus', () => {
           connect: vi.fn(),
           disconnect: vi.fn(),
           getHealth: vi.fn(),
+        },
+        pipelineAudit: {
+          listProfiles: vi.fn(),
+          run: vi.fn(),
         },
         updates: {
           check: vi.fn(),
