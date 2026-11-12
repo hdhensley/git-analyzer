@@ -7,6 +7,7 @@ import type {
   Commit,
   CommitData,
   CommitFilter,
+  RepoActivity,
   UserPreferences,
   DateRangePreset,
   RepositorySource,
@@ -306,6 +307,47 @@ export class DatabaseService {
     });
 
     insertMany(commits);
+  }
+
+  /**
+   * All-time per-repository commit aggregates (no date filter). Repositories
+   * with no stored commits are still returned, with zero counts.
+   */
+  getRepoActivity(repositoryIds: string[]): RepoActivity[] {
+    if (repositoryIds.length === 0) return [];
+    const placeholders = repositoryIds.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT repository_id,
+                COUNT(*) AS total,
+                MIN(commit_date) AS first_date,
+                MAX(commit_date) AS last_date,
+                COUNT(DISTINCT author_name) AS names,
+                COUNT(DISTINCT author_email) AS emails
+         FROM commits
+         WHERE repository_id IN (${placeholders})
+         GROUP BY repository_id`
+      )
+      .all(...repositoryIds) as Array<{
+      repository_id: string;
+      total: number;
+      first_date: string;
+      last_date: string;
+      names: number;
+      emails: number;
+    }>;
+    const byId = new Map(rows.map((r) => [r.repository_id, r]));
+    return repositoryIds.map((id) => {
+      const r = byId.get(id);
+      return {
+        repositoryId: id,
+        totalCommits: r?.total ?? 0,
+        firstCommitDate: r ? new Date(r.first_date).toISOString() : null,
+        lastCommitDate: r ? new Date(r.last_date).toISOString() : null,
+        uniqueAuthorNames: r?.names ?? 0,
+        uniqueAuthorEmails: r?.emails ?? 0,
+      };
+    });
   }
 
   getCommits(filter: CommitFilter): Commit[] {

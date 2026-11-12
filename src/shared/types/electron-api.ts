@@ -25,6 +25,7 @@ import type {
   SnykHealthResult,
   BranchDivergence,
   AwsProfile,
+  RepoActivity,
   PipelineAuditResult,
 } from './index';
 
@@ -65,6 +66,7 @@ export interface ElectronAPI {
   commits: {
     query: (filter: CommitFilter) => Promise<Commit[]>;
     getStats: (filter: CommitFilter) => Promise<CommitStats>;
+    getRepoActivity: (repositoryIds: string[]) => Promise<RepoActivity[]>;
   };
 
   preferences: {

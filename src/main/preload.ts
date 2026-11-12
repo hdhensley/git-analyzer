@@ -42,6 +42,7 @@ const electronAPI: ElectronAPI = {
   commits: {
     query: (filter) => ipcRenderer.invoke('commits:query', filter),
     getStats: (filter) => ipcRenderer.invoke('commits:getStats', filter),
+    getRepoActivity: (repositoryIds) => ipcRenderer.invoke('commits:getRepoActivity', repositoryIds),
   },
 
   preferences: {

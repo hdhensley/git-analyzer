@@ -106,6 +106,7 @@ describe('AuthStatus', () => {
         commits: {
           query: vi.fn(),
           getStats: vi.fn(),
+          getRepoActivity: vi.fn(),
         },
         preferences: {
           get: vi.fn(),
@@ -180,6 +181,7 @@ describe('AuthStatus', () => {
         commits: {
           query: vi.fn(),
           getStats: vi.fn(),
+          getRepoActivity: vi.fn(),
         },
         preferences: {
           get: vi.fn(),

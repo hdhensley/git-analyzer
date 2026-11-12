@@ -278,6 +278,10 @@ export function registerIpcHandlers(): void {
     return db.getCommits(filter);
   });
 
+  ipcMain.handle('commits:getRepoActivity', async (_event, repositoryIds: string[]) => {
+    return db.getRepoActivity(repositoryIds);
+  });
+
   ipcMain.handle('commits:getStats', async (_event, filter: CommitFilter) => {
     const commits = db.getCommits(filter);
     const authors = new Set(commits.map((c) => c.authorEmail));

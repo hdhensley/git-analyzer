@@ -37,16 +37,39 @@ function readPersistedLastSync(): number {
   }
 }
 
-type View = 'connect' | 'import' | 'importing' | 'analytics' | 'compare';
-type AnalyticsTab = 'overview' | 'by-user' | 'by-repository' | 'commit-messages' | 'insights';
-type ImportSource = null | 'local' | 'github' | 'bitbucket';
+type View = 'connect' | 'import' | 'importing' | 'analytics';
+// Analytics is split by whether the data is time-bound:
+//  - trends:   activity over a chosen date range
+//  - snapshot: current state of every selected repo, no date range
+//  - insights: range-aware analysis (bus factor, commit message quality)
+type AnalyticsSection = 'trends' | 'snapshot' | 'insights';
+type TrendsView = 'overview' | 'by-user' | 'commit-messages';
+type ImportSource = null | 'local' | 'github' | 'bitbucket' | 'compare';
+
+// Display names for the analytics sections (single place to rename).
+const SECTION_LABELS: Record<AnalyticsSection, string> = {
+  trends: 'Trends',
+  snapshot: 'Snapshot',
+  insights: 'Insights',
+};
+const SECTION_HINTS: Record<AnalyticsSection, string> = {
+  trends: 'How activity changes over the selected date range',
+  snapshot: 'Where every selected repository stands right now (ignores the date range)',
+  insights: 'Bus factor and commit quality for the selected date range',
+};
+const TRENDS_VIEWS: Array<{ id: TrendsView; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'by-user', label: 'By User' },
+  { id: 'commit-messages', label: 'Commit Messages' },
+];
 
 export function Dashboard() {
   const api = useElectronAPI();
   
   // View state
   const [view, setView] = useState<View>('connect');
-  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>('overview');
+  const [section, setSection] = useState<AnalyticsSection>('trends');
+  const [trendsView, setTrendsView] = useState<TrendsView>('overview');
   
   // Auth state
   const [githubConnected, setGithubConnected] = useState(false);
@@ -367,13 +390,6 @@ export function Dashboard() {
           >
             Analytics
           </button>
-          <button
-            type="button"
-            className={view === 'compare' ? 'active' : ''}
-            onClick={() => setView('compare')}
-          >
-            Compare
-          </button>
         </nav>
       </header>
 
@@ -470,6 +486,17 @@ export function Dashboard() {
                     <span className="dashboard__import-source-desc">Not connected — click to set up</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="dashboard__import-source-btn"
+                  onClick={() => setImportSource('compare')}
+                >
+                  <span className="dashboard__import-source-icon">⬇️</span>
+                  <span className="dashboard__import-source-label">Clone missing from a project</span>
+                  <span className="dashboard__import-source-desc">
+                    See which repos in a Bitbucket/GitHub project aren&apos;t in a local folder, and clone them
+                  </span>
+                </button>
               </div>
             )}
 
@@ -489,6 +516,15 @@ export function Dashboard() {
               <div className="dashboard__local-import">
                 <LocalRepositoryBrowser onImportComplete={handleImportComplete} />
               </div>
+            )}
+
+            {/* Compare an SCM project with a local folder and clone what's missing */}
+            {importSource === 'compare' && (
+              <ScmLocalCompare
+                githubConnected={githubConnected}
+                bitbucketConnected={bitbucketConnected}
+                onConnectClick={() => setView('connect')}
+              />
             )}
 
             {/* Cloud repositories */}
@@ -535,18 +571,6 @@ export function Dashboard() {
             <ImportProgress 
               repositories={importingRepos}
               onComplete={handleImportComplete}
-            />
-          </section>
-        )}
-
-        {view === 'compare' && (
-          <section className="dashboard__section">
-            <h2>Compare SCM to Local</h2>
-            <p>Compare a Bitbucket project against a local folder and clone any missing repositories.</p>
-            <ScmLocalCompare
-              githubConnected={githubConnected}
-              bitbucketConnected={bitbucketConnected}
-              onConnectClick={() => setView('connect')}
             />
           </section>
         )}
@@ -628,14 +652,6 @@ export function Dashboard() {
                 </div>
               )}
               <div className="dashboard__filter-section">
-                <h3>Date Range</h3>
-                <DateRangeFilter
-                  value={dateRange}
-                  preset={dateRangePreset}
-                  onChange={handleDateRangeChange}
-                />
-              </div>
-              <div className="dashboard__filter-section">
                 <RepositoryFilter
                   selectedIds={selectedRepoIds}
                   onChange={handleRepoSelectionChange}
@@ -644,42 +660,20 @@ export function Dashboard() {
             </aside>
 
             <div className="dashboard__main">
-              <div className="dashboard__tabs">
-                <button
-                  type="button"
-                  className={`dashboard__tab ${analyticsTab === 'overview' ? 'dashboard__tab--active' : ''}`}
-                  onClick={() => setAnalyticsTab('overview')}
-                >
-                  Overview
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard__tab ${analyticsTab === 'by-user' ? 'dashboard__tab--active' : ''}`}
-                  onClick={() => setAnalyticsTab('by-user')}
-                >
-                  By User
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard__tab ${analyticsTab === 'by-repository' ? 'dashboard__tab--active' : ''}`}
-                  onClick={() => setAnalyticsTab('by-repository')}
-                >
-                  By Repository
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard__tab ${analyticsTab === 'commit-messages' ? 'dashboard__tab--active' : ''}`}
-                  onClick={() => setAnalyticsTab('commit-messages')}
-                >
-                  Commit Messages
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard__tab ${analyticsTab === 'insights' ? 'dashboard__tab--active' : ''}`}
-                  onClick={() => setAnalyticsTab('insights')}
-                >
-                  Insights
-                </button>
+              <div className="dashboard__tabs" role="tablist" aria-label="Analytics sections">
+                {(Object.keys(SECTION_LABELS) as AnalyticsSection[]).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={section === id}
+                    title={SECTION_HINTS[id]}
+                    className={`dashboard__tab ${section === id ? 'dashboard__tab--active' : ''}`}
+                    onClick={() => setSection(id)}
+                  >
+                    {SECTION_LABELS[id]}
+                  </button>
+                ))}
 
                 <div className="dashboard__grouping-toggle">
                   <span className="dashboard__grouping-label">Group by:</span>
@@ -700,8 +694,38 @@ export function Dashboard() {
                 </div>
               </div>
 
+              <p className="dashboard__section-hint">{SECTION_HINTS[section]}</p>
+
+              {section !== 'snapshot' && (
+                <div className="dashboard__date-bar">
+                  <span className="dashboard__date-bar-label">Date range</span>
+                  <DateRangeFilter
+                    value={dateRange}
+                    preset={dateRangePreset}
+                    onChange={handleDateRangeChange}
+                  />
+                </div>
+              )}
+
+              {section === 'trends' && (
+                <div className="dashboard__subtabs" role="tablist" aria-label="Trends views">
+                  {TRENDS_VIEWS.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={trendsView === v.id}
+                      className={`dashboard__subtab ${trendsView === v.id ? 'dashboard__subtab--active' : ''}`}
+                      onClick={() => setTrendsView(v.id)}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="dashboard__widgets">
-                {loading && <div className="dashboard__loading">Loading commits...</div>}
+                {loading && section !== 'snapshot' && <div className="dashboard__loading">Loading commits...</div>}
                 
                 {!loading && selectedRepoIds.length === 0 && (
                   <div className="dashboard__empty">
@@ -709,7 +733,7 @@ export function Dashboard() {
                   </div>
                 )}
 
-                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'overview' && (
+                {!loading && selectedRepoIds.length > 0 && section === 'trends' && trendsView === 'overview' && (
                   <>
                     <ChartWidget
                       key="contribution-graph"
@@ -754,7 +778,7 @@ export function Dashboard() {
                   </>
                 )}
 
-                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-user' && (
+                {!loading && selectedRepoIds.length > 0 && section === 'trends' && trendsView === 'by-user' && (
                   <>
                     <ChartWidget
                       key="streaks"
@@ -779,7 +803,7 @@ export function Dashboard() {
                   </>
                 )}
 
-                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'by-repository' && (
+                {selectedRepoIds.length > 0 && section === 'snapshot' && (
                   <>
                     <ChartWidget
                       key="repo-health"
@@ -794,7 +818,7 @@ export function Dashboard() {
                   </>
                 )}
 
-                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'commit-messages' && (
+                {!loading && selectedRepoIds.length > 0 && section === 'trends' && trendsView === 'commit-messages' && (
                   <>
                     <ChartWidget
                       key="message-summary"
@@ -819,7 +843,7 @@ export function Dashboard() {
                   </>
                 )}
 
-                {!loading && selectedRepoIds.length > 0 && analyticsTab === 'insights' && (
+                {!loading && selectedRepoIds.length > 0 && section === 'insights' && (
                   <>
                     <ChartWidget
                       key="bus-factor"

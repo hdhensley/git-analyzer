@@ -117,6 +117,17 @@ export interface PipelineAuditResult {
   entries: PipelineAuditEntry[];
 }
 
+// All-time commit activity for one repository, independent of any date range.
+// Powers the Snapshot view (Repository Health).
+export interface RepoActivity {
+  repositoryId: string;
+  totalCommits: number;
+  firstCommitDate: string | null; // ISO timestamp; null when the repo has no commits
+  lastCommitDate: string | null;
+  uniqueAuthorNames: number;
+  uniqueAuthorEmails: number;
+}
+
 // Extended to include 'local' as a repository source
 export type RepositorySource = 'github' | 'bitbucket' | 'local';
 

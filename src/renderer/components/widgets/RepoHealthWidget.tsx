@@ -7,6 +7,7 @@ import type {
   SnykRepoProjectInfo,
   BranchDivergence,
   AwsProfile,
+  RepoActivity,
   PipelineAuditEntry,
   PipelineAuditResult,
 } from '../../../shared/types';
@@ -105,6 +106,8 @@ function readStoredRepoWidth(): number | null {
 }
 
 export function RepoHealthWidget({ commits, repositories, authorGrouping }: ChartWidgetProps) {
+  // `commits` is the date-filtered set used by other widgets; it is only used
+  // here as a signal that data changed (e.g. after a sync) so activity reloads.
   const groupByName = authorGrouping === 'name';
   const api = useElectronAPI();
 
@@ -339,50 +342,59 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
   // value is the divergence or null when it couldn't be computed.
   const [divergence, setDivergence] = useState<Record<string, BranchDivergence | null>>({});
 
+  // All-time per-repo activity, fetched independently of the date range.
+  const [activity, setActivity] = useState<RepoActivity[]>([]);
+  const repoIdsKey = useMemo(() => repositories.map((r) => r.id).sort().join('|'), [repositories]);
+  useEffect(() => {
+    if (!api?.commits?.getRepoActivity || !repoIdsKey) {
+      setActivity([]);
+      return;
+    }
+    let cancelled = false;
+    api.commits
+      .getRepoActivity(repoIdsKey.split('|'))
+      .then((rows) => {
+        if (!cancelled) setActivity(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setActivity([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, repoIdsKey, commits]);
+
   const repos = useMemo<RepoHealth[]>(() => {
     const now = new Date();
-    const repoMap = new Map<string, { name: string; parentFolder?: string; dates: Date[]; authors: Set<string> }>();
+    const activityById = new Map(activity.map((a) => [a.repositoryId, a]));
 
-    // One row per selected repository, regardless of the date range. Activity
-    // columns reflect the filtered commits; repos with none show as empty.
-    for (const repo of repositories) {
-      repoMap.set(repo.id, { name: repo.name, parentFolder: repo.parentFolder, dates: [], authors: new Set() });
-    }
-
-    for (const c of commits) {
-      if (!repoMap.has(c.repositoryId)) {
-        repoMap.set(c.repositoryId, { name: c.repositoryName, parentFolder: c.repositoryParentFolder, dates: [], authors: new Set() });
-      }
-      const r = repoMap.get(c.repositoryId)!;
-      r.dates.push(new Date(c.date));
-      r.authors.add(groupByName ? c.authorName : c.authorEmail);
-    }
-
-    return Array.from(repoMap.entries()).map(([repoId, r]): RepoHealth => {
+    // One row per selected repository. Activity is all-time (not date-filtered)
+    // so staleness and velocity describe the repository as it stands today.
+    return repositories.map((repo): RepoHealth => {
+      const a = activityById.get(repo.id);
       const base = {
-        repoId, repoName: r.name, parentFolder: r.parentFolder,
-        provider: providerById.get(repoId) ?? 'unknown',
-        totalCommits: r.dates.length,
-        defaultBranch: defaultBranchById.get(repoId) ?? '—',
-        uniqueContributors: r.authors.size,
+        repoId: repo.id,
+        repoName: repo.name,
+        parentFolder: repo.parentFolder,
+        provider: providerById.get(repo.id) ?? 'unknown',
+        totalCommits: a?.totalCommits ?? 0,
+        defaultBranch: defaultBranchById.get(repo.id) ?? '—',
+        uniqueContributors: a ? (groupByName ? a.uniqueAuthorNames : a.uniqueAuthorEmails) : 0,
       };
-      if (r.dates.length === 0) {
+      if (!a || !a.lastCommitDate || !a.firstCommitDate) {
         return { ...base, lastCommitDate: null, daysSinceLastCommit: null, commitsPerWeek: 0 };
       }
-      const sorted = r.dates.sort((a, b) => b.getTime() - a.getTime());
-      const lastCommit = sorted[0];
-      const daysSince = Math.floor((now.getTime() - lastCommit.getTime()) / 86400000);
-      const earliest = sorted[sorted.length - 1];
-      const weeks = Math.max(1, (lastCommit.getTime() - earliest.getTime()) / (7 * 86400000));
-
+      const last = new Date(a.lastCommitDate);
+      const first = new Date(a.firstCommitDate);
+      const weeks = Math.max(1, (last.getTime() - first.getTime()) / (7 * 86400000));
       return {
         ...base,
-        lastCommitDate: lastCommit,
-        daysSinceLastCommit: daysSince,
-        commitsPerWeek: Math.round((r.dates.length / weeks) * 10) / 10,
+        lastCommitDate: last,
+        daysSinceLastCommit: Math.floor((now.getTime() - last.getTime()) / 86400000),
+        commitsPerWeek: Math.round((a.totalCommits / weeks) * 10) / 10,
       };
     });
-  }, [commits, repositories, groupByName, defaultBranchById, providerById]);
+  }, [activity, repositories, groupByName, defaultBranchById, providerById]);
 
   // Fetch develop-vs-main divergence for local repos only. Cloud repos are not
   // supported yet (no stored per-branch graph).
@@ -475,8 +487,8 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     });
   }, [sortedRepos, onlyProblems, audit, pipelineByRepo]);
 
-  if (commits.length === 0 && repositories.length === 0) {
-    return <div className="repo-health repo-health--empty">No commits match the current filters</div>;
+  if (repositories.length === 0) {
+    return <div className="repo-health repo-health--empty">No repositories selected</div>;
   }
 
   const stalenessClass = (days: number | null) => days === null ? 'repo-health__staleness--none' : days <= 7 ? 'repo-health__staleness--fresh' : days <= 30 ? 'repo-health__staleness--recent' : days <= 90 ? 'repo-health__staleness--stale' : 'repo-health__staleness--dead';
@@ -730,7 +742,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
               </span>
               <span>{r.totalCommits}</span>
               <span className={`repo-health__staleness ${stalenessClass(r.daysSinceLastCommit)}`}>
-                {r.daysSinceLastCommit === null ? 'None in range' : r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
+                {r.daysSinceLastCommit === null ? 'No commits' : r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
               </span>
               <span>{r.commitsPerWeek}</span>
               <span
@@ -839,6 +851,8 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
         })}
       </div>
       <p className="repo-health__note">
+        <strong>Commits, Last Activity, Commits/wk and Contributors</strong> cover each
+        repository&apos;s full synced history and ignore the date range.{' '}
         <strong>Dev vs Main</strong> shows how far <code>develop</code> is ahead of / behind{' '}
         <code>main</code> (+ahead / −behind), for local repositories only. Cloud (GitHub/Bitbucket)
         comparison is not supported yet.
@@ -850,9 +864,9 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
 export const RepoHealthWidgetDefinition = {
   id: 'repo-health',
   name: 'Repository Health',
-  description: 'Activity, staleness, default branch, velocity, and Snyk issue counts per repository',
+  description: 'All-time activity, staleness, default branch, velocity, pipelines, and Snyk issue counts per repository',
   requiredFields: ['date'] as const,
-  supportsDateFilter: true,
+  supportsDateFilter: false,
   supportsRepoFilter: true,
   component: RepoHealthWidget,
 };

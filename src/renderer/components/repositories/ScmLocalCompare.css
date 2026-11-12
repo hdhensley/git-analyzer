@@ -338,3 +338,5 @@
   background: #eef2ff;
   color: #4f46e5;
 }
+
+.scm-compare__intro { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--color-muted, #6b7280); }

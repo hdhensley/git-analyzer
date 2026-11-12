@@ -249,7 +249,11 @@ export function ScmLocalCompare({
   return (
     <div className="scm-compare">
       <div className="scm-compare__header">
-        <h3>Compare SCM Project to Local Folder</h3>
+        <h3>Clone missing repositories from a project</h3>
+        <p className="scm-compare__intro">
+          Pick a Bitbucket project or GitHub owner and a local folder. Repositories in the project
+          that aren&apos;t in the folder are listed as missing, and you can clone them.
+        </p>
       </div>
 
       {error && (

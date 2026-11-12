@@ -48,6 +48,7 @@ describe('useElectronAPI', () => {
     commits: {
       query: vi.fn(),
       getStats: vi.fn(),
+      getRepoActivity: vi.fn(),
     },
     preferences: {
       get: vi.fn(),
