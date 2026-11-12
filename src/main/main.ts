@@ -1,12 +1,14 @@
 import 'dotenv/config';
-import { app, BrowserWindow, Menu, dialog, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, clipboard, dialog, type MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
 import { getUpdateService } from './services';
 import { SpaceManager } from './spaces/space-manager';
+import { McpService } from './mcp/mcp-service';
 
 let mainWindow: BrowserWindow | null = null;
 let spaces: SpaceManager;
+let mcp: McpService;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -77,6 +79,68 @@ function buildSpacesMenu(): MenuItemConstructorOptions {
   return { label: 'Spaces', submenu: items };
 }
 
+function showMcpError(message: string, error: unknown): void {
+  dialog.showMessageBox({
+    type: 'warning',
+    message,
+    detail: error instanceof Error ? error.message : String(error),
+  });
+}
+
+// MCP menu: opt-in local server that lets an LLM client query the active space.
+function buildMcpMenu(): MenuItemConstructorOptions {
+  return {
+    label: 'MCP Server',
+    submenu: [
+      {
+        label: 'Enable MCP Server',
+        type: 'checkbox',
+        checked: mcp.enabled,
+        click: async (item) => {
+          try {
+            await mcp.setEnabled(item.checked);
+          } catch (error) {
+            showMcpError('Could not change the MCP server', error);
+          }
+          buildAppMenu();
+        },
+      },
+      { label: mcp.enabled ? `Listening on ${mcp.url}` : 'Not running', enabled: false },
+      { type: 'separator' },
+      {
+        label: 'Copy Connection Config',
+        click: async () => {
+          try {
+            clipboard.writeText(await mcp.connectionConfig());
+          } catch (error) {
+            showMcpError('Could not read the MCP token from the keychain', error);
+          }
+        },
+      },
+      {
+        label: 'Regenerate Token...',
+        click: async () => {
+          const { response } = await dialog.showMessageBox({
+            type: 'warning',
+            message: 'Regenerate the MCP token?',
+            detail: 'Connected clients will stop working until you give them the new connection config.',
+            buttons: ['Regenerate', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+          });
+          if (response !== 0) return;
+          try {
+            await mcp.regenerateToken();
+          } catch (error) {
+            showMcpError('Could not regenerate the token', error);
+          }
+          buildAppMenu();
+        },
+      },
+    ],
+  };
+}
+
 function buildAppMenu(): void {
   const template: MenuItemConstructorOptions[] = [];
 
@@ -92,6 +156,7 @@ function buildAppMenu(): void {
     { role: 'fileMenu' },
     { role: 'editMenu' },
     buildSpacesMenu(),
+    buildMcpMenu(),
     { role: 'viewMenu' },
     { role: 'windowMenu' },
     {
@@ -116,7 +181,9 @@ function buildAppMenu(): void {
 
 app.whenReady().then(() => {
   spaces = new SpaceManager(app.getPath('userData'));
+  mcp = new McpService(app.getPath('userData'), spaces);
   registerIpcHandlers(spaces, buildAppMenu);
+  mcp.startIfEnabled().finally(buildAppMenu);
   buildAppMenu();
   createWindow();
 
@@ -144,5 +211,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('quit', () => {
+  mcp?.stop();
   spaces?.close();
 });

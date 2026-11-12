@@ -504,6 +504,28 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Runs a single read-only statement and returns at most `maxRows` rows.
+   * Refuses anything better-sqlite3 does not report as read-only, so it cannot
+   * modify data even if the caller passes unvetted SQL.
+   */
+  queryReadOnly(
+    sql: string,
+    params: unknown[] = [],
+    maxRows = 1000
+  ): { rows: Record<string, unknown>[]; truncated: boolean } {
+    const stmt = this.db.prepare(sql); // throws on multiple statements
+    if (!stmt.readonly) {
+      throw new Error('Only read-only statements are allowed');
+    }
+    const rows: Record<string, unknown>[] = [];
+    for (const row of stmt.iterate(...params) as IterableIterator<Record<string, unknown>>) {
+      if (rows.length >= maxRows) return { rows, truncated: true };
+      rows.push(row);
+    }
+    return { rows, truncated: false };
+  }
+
   clearAllData(): void {
     this.db.exec(`
       DELETE FROM commits;

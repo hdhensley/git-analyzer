@@ -14,6 +14,7 @@ Cross-platform Electron desktop app for visualizing git activity across GitHub, 
 - **Local repo scanning** — recursively discover git repos in a directory
 - **Rate limit handling** — automatic retry with exponential backoff for API calls
 - **Secure credential storage** — uses OS keychain via keytar
+- **MCP server** — optional local server so an LLM client can query your data (see below)
 
 ## Tech Stack
 
@@ -110,6 +111,35 @@ No server-side configuration needed — works out of the box.
 
 Requires `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` or `BITBUCKET_CLIENT_ID`/`BITBUCKET_CLIENT_SECRET` in `.env`. The OAuth tab is disabled in the UI when credentials aren't configured.
 
+## MCP Server
+The app can expose the active space's data to any MCP-capable LLM client (Claude Desktop, Kiro, Cursor, ...) so it can query and summarize your commits. It is **off by default** and read-only.
+
+Turn it on from **MCP Server → Enable MCP Server**, then choose **Copy Connection Config** and paste the result into your client's MCP settings. The config looks like:
+```json
+{
+  "mcpServers": {
+    "git-analyzer": {
+      "url": "http://127.0.0.1:39217/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+Clients that only support stdio servers can bridge with `npx mcp-remote`.
+
+**Tools**
+- `get_active_space`, `list_repositories`
+- `get_selection` — the repositories and date range currently selected in the app
+- `get_repository_activity`, `get_commits`, `get_author_stats`, `get_commit_activity`
+- `query` — a single read-only `SELECT` against the `repositories` and `commits` tables (schema available as the `gitbrowser://schema` resource)
+
+**Security**
+- Listens on `127.0.0.1` only and rejects non-local `Host`/`Origin` headers.
+- Requires a bearer token stored in the OS keychain. **Regenerate Token...** invalidates the old one immediately.
+- Only repositories and commits are reachable. Credentials, provider connections and cached Snyk results are not exposed.
+- The server runs only while the app is open. Switching spaces switches the data it serves.
+- The default port is 39217. To change it, set `port` in `mcp-settings.json` in the app's user data directory.
+
 ## Cloud Import Limits
 
 - Maximum 2,000 commits per repository
@@ -131,6 +161,7 @@ git push origin v1.0.0
 src/
   main/           # Electron main process
     services/     # Database, auth, git, local-git, secure-storage
+    mcp/          # Built-in MCP server (HTTP transport, tools, token/settings)
   renderer/       # React UI
     components/   # Auth, dashboard, filters, repositories, widgets
     hooks/        # useElectronAPI
