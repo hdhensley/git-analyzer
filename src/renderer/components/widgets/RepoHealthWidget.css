@@ -5,7 +5,7 @@
 .repo-health__header-row,
 .repo-health__row {
   /* --repo-col / --other-col-count / --row-min-width are set inline by the widget. */
-  grid-template-columns: var(--repo-col, minmax(260px, 3fr)) repeat(var(--other-col-count, 6), minmax(72px, 1fr));
+  grid-template-columns: var(--repo-col, minmax(260px, 3fr)) var(--other-cols, repeat(6, minmax(72px, 1fr)));
   min-width: var(--row-min-width, auto);
 }
 .repo-health__header-row {
@@ -52,20 +52,8 @@
 .repo-health__col-resizer:focus-visible { outline: none; }
 .repo-health__col-resizer:focus-visible::after { background: var(--color-primary, #3b82f6); width: 3px; }
 
-.repo-health__snyk-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-  padding: 0.25rem 0.75rem; font-size: 0.75rem; color: var(--color-muted, #6b7280);
-}
-.repo-health__snyk-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-health__snyk-error-text { color: #dc2626; }
 
-.repo-health__snyk-refresh {
-  flex-shrink: 0; padding: 0.3rem 0.6rem; border: 1px solid var(--color-border, #d1d5db);
-  border-radius: 6px; background: var(--bg-primary, #fff); color: var(--text-primary, #1f2937);
-  font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background-color 0.15s;
-}
-.repo-health__snyk-refresh:hover:not(:disabled) { background: var(--bg-hover, #f0f0f0); }
-.repo-health__snyk-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .repo-health__sev { font-weight: 500; color: var(--color-muted, #9ca3af); }
 .repo-health__sev--active.repo-health__sev--critical { color: #dc2626; font-weight: 700; }
@@ -98,7 +86,6 @@
 .repo-health__staleness--dead { color: #dc2626; }
 
 /* Pipeline audit (CDK pipeline Snyk completeness + deployed-state check) */
-.repo-health__pipeline-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .repo-health__pipeline-check { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; white-space: nowrap; }
 .repo-health__pipeline-select {
   padding: 0.3rem 0.4rem; border: 1px solid var(--color-border, #d1d5db); border-radius: 6px;
@@ -114,3 +101,42 @@
 .repo-health__deploy--out-of-sync,
 .repo-health__deploy--error { color: #dc2626; font-weight: 700; }
 .repo-health__deploy--unknown { color: #ea580c; }
+
+/* Data sources: what feeds this table, with status and actions per source. */
+.repo-health__sources {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.75rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+.repo-health__source {
+  display: flex; flex-direction: column; gap: 0.4rem; padding: 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px;
+  background: var(--bg-secondary, #f9fafb); font-size: 0.78rem; min-width: 0;
+}
+.repo-health__source-title { margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--text-primary, #1f2937); }
+.repo-health__source-desc,
+.repo-health__source-hint { margin: 0; line-height: 1.4; color: var(--color-muted, #6b7280); }
+.repo-health__source-status { margin: 0; color: var(--text-primary, #1f2937); }
+.repo-health__source-actions { display: flex; gap: 0.5rem; align-items: center; }
+.repo-health__snyk-error-text { color: #dc2626; }
+.repo-health__action {
+  flex-shrink: 0; padding: 0.3rem 0.6rem; border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px; background: var(--bg-primary, #fff); color: var(--text-primary, #1f2937);
+  font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background-color 0.15s;
+}
+.repo-health__action:hover:not(:disabled) { background: var(--bg-hover, #f0f0f0); }
+.repo-health__action:disabled { opacity: 0.5; cursor: not-allowed; }
+.repo-health__aws {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem;
+  margin-top: 0.25rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color, #e5e7eb);
+}
+.repo-health__aws-label { flex-basis: 100%; font-weight: 600; font-size: 0.72rem; color: var(--text-primary, #1f2937); }
+.repo-health__aws .repo-health__source-hint { flex-basis: 100%; }
+.repo-health__source code {
+  font-size: 0.72rem; background: var(--bg-primary, #fff); padding: 0.05rem 0.3rem; border-radius: 3px;
+}
+.repo-health__toolbar { display: flex; justify-content: flex-end; padding: 0 0.75rem; font-size: 0.75rem; color: var(--color-muted, #6b7280); }
+
+.repo-health__snyk-org { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; cursor: help; }
+.repo-health__snyk-org--none { color: var(--color-muted, #9ca3af); }
+.repo-health__snyk-org--mismatch { color: #d97706; font-weight: 600; }
+.repo-health__staleness--none { color: var(--color-muted, #9ca3af); font-weight: 400; }

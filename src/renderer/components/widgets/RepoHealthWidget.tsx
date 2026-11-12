@@ -4,6 +4,7 @@ import type { ChartWidgetProps } from './types';
 import type {
   SnykRepoIssueCounts,
   SnykHealthResult,
+  SnykRepoProjectInfo,
   BranchDivergence,
   AwsProfile,
   PipelineAuditEntry,
@@ -18,8 +19,8 @@ interface RepoHealth {
   parentFolder?: string;
   provider: string;
   totalCommits: number;
-  lastCommitDate: Date;
-  daysSinceLastCommit: number;
+  lastCommitDate: Date | null; // null when the repo has no commits in the current filter
+  daysSinceLastCommit: number | null;
   defaultBranch: string;
   uniqueContributors: number;
   commitsPerWeek: number;
@@ -35,7 +36,8 @@ type SortKey =
   | 'critical'
   | 'high'
   | 'pipeline'
-  | 'deployed';
+  | 'deployed'
+  | 'snykOrg';
 
 type SortDir = 'asc' | 'desc';
 
@@ -118,7 +120,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
       setSortKey(key);
       // Text column defaults to A→Z; numeric columns default to high→low, which
       // is the more useful first glance for counts and velocity.
-      setSortDir(key === 'repoName' || key === 'defaultBranch' ? 'asc' : 'desc');
+      setSortDir(key === 'repoName' || key === 'defaultBranch' || key === 'snykOrg' ? 'asc' : 'desc');
     }
   };
 
@@ -175,6 +177,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
   const [snykCounts, setSnykCounts] = useState<Record<string, SnykRepoIssueCounts>>({});
   const [snykLoading, setSnykLoading] = useState(false);
   const [snykError, setSnykError] = useState<string | null>(null);
+  const [snykProjects, setSnykProjects] = useState<Record<string, SnykRepoProjectInfo>>({});
   const [snykDiag, setSnykDiag] = useState<SnykHealthResult['diagnostics'] | null>(null);
   const [snykFetchedAt, setSnykFetchedAt] = useState<string | null>(null);
   const [snykFromCache, setSnykFromCache] = useState(false);
@@ -195,6 +198,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
         setSnykError(null);
         const health = await api.snyk.getHealth(force ? { force: true } : undefined);
         setSnykCounts(health.countsByRepoName);
+        setSnykProjects(health.projectsByRepoName ?? {});
         setSnykDiag(health.diagnostics ?? null);
         setSnykFetchedAt(health.fetchedAt);
         setSnykFromCache(health.cached === true);
@@ -339,6 +343,12 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     const now = new Date();
     const repoMap = new Map<string, { name: string; parentFolder?: string; dates: Date[]; authors: Set<string> }>();
 
+    // One row per selected repository, regardless of the date range. Activity
+    // columns reflect the filtered commits; repos with none show as empty.
+    for (const repo of repositories) {
+      repoMap.set(repo.id, { name: repo.name, parentFolder: repo.parentFolder, dates: [], authors: new Set() });
+    }
+
     for (const c of commits) {
       if (!repoMap.has(c.repositoryId)) {
         repoMap.set(c.repositoryId, { name: c.repositoryName, parentFolder: c.repositoryParentFolder, dates: [], authors: new Set() });
@@ -348,7 +358,17 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
       r.authors.add(groupByName ? c.authorName : c.authorEmail);
     }
 
-    return Array.from(repoMap.entries()).map(([repoId, r]) => {
+    return Array.from(repoMap.entries()).map(([repoId, r]): RepoHealth => {
+      const base = {
+        repoId, repoName: r.name, parentFolder: r.parentFolder,
+        provider: providerById.get(repoId) ?? 'unknown',
+        totalCommits: r.dates.length,
+        defaultBranch: defaultBranchById.get(repoId) ?? '—',
+        uniqueContributors: r.authors.size,
+      };
+      if (r.dates.length === 0) {
+        return { ...base, lastCommitDate: null, daysSinceLastCommit: null, commitsPerWeek: 0 };
+      }
       const sorted = r.dates.sort((a, b) => b.getTime() - a.getTime());
       const lastCommit = sorted[0];
       const daysSince = Math.floor((now.getTime() - lastCommit.getTime()) / 86400000);
@@ -356,17 +376,13 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
       const weeks = Math.max(1, (lastCommit.getTime() - earliest.getTime()) / (7 * 86400000));
 
       return {
-        repoId, repoName: r.name, parentFolder: r.parentFolder,
-        provider: providerById.get(repoId) ?? 'unknown',
-        totalCommits: r.dates.length,
+        ...base,
         lastCommitDate: lastCommit,
         daysSinceLastCommit: daysSince,
-        defaultBranch: defaultBranchById.get(repoId) ?? '—',
-        uniqueContributors: r.authors.size,
         commitsPerWeek: Math.round((r.dates.length / weeks) * 10) / 10,
       };
     });
-  }, [commits, groupByName, defaultBranchById, providerById]);
+  }, [commits, repositories, groupByName, defaultBranchById, providerById]);
 
   // Fetch develop-vs-main divergence for local repos only. Cloud repos are not
   // supported yet (no stored per-branch graph).
@@ -399,6 +415,12 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     };
   }, [api, repos]);
 
+  const lookupProject = useCallback(
+    (repoName: string): SnykRepoProjectInfo | undefined =>
+      snykProjects[repoName.trim().toLowerCase()],
+    [snykProjects]
+  );
+
   const lookupSnyk = useCallback(
     (repoName: string): SnykRepoIssueCounts | undefined =>
       snykCounts[repoName.trim().toLowerCase()],
@@ -413,6 +435,12 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           return `${r.parentFolder ? `${r.parentFolder}/` : ''}${r.repoName}`.toLowerCase();
         case 'defaultBranch':
           return r.defaultBranch.toLowerCase();
+        case 'daysSinceLastCommit':
+          return r.daysSinceLastCommit ?? Number.MAX_SAFE_INTEGER;
+        case 'snykOrg': {
+          const o = lookupProject(r.repoName)?.orgs[0];
+          return (o?.slug ?? o?.name ?? '~').toLowerCase();
+        }
         case 'critical':
           return lookupSnyk(r.repoName)?.critical ?? 0;
         case 'high':
@@ -437,7 +465,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
       }
       return ((av as number) - (bv as number)) * dir;
     });
-  }, [repos, sortKey, sortDir, lookupSnyk, pipelineByRepo]);
+  }, [repos, sortKey, sortDir, lookupSnyk, lookupProject, pipelineByRepo]);
 
   const visibleRepos = useMemo<RepoHealth[]>(() => {
     if (!onlyProblems || !audit) return sortedRepos;
@@ -447,25 +475,39 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
     });
   }, [sortedRepos, onlyProblems, audit, pipelineByRepo]);
 
-  if (commits.length === 0) {
+  if (commits.length === 0 && repositories.length === 0) {
     return <div className="repo-health repo-health--empty">No commits match the current filters</div>;
   }
 
-  const stalenessClass = (days: number) => days <= 7 ? 'repo-health__staleness--fresh' : days <= 30 ? 'repo-health__staleness--recent' : days <= 90 ? 'repo-health__staleness--stale' : 'repo-health__staleness--dead';
+  const stalenessClass = (days: number | null) => days === null ? 'repo-health__staleness--none' : days <= 7 ? 'repo-health__staleness--fresh' : days <= 30 ? 'repo-health__staleness--recent' : days <= 90 ? 'repo-health__staleness--stale' : 'repo-health__staleness--dead';
 
   const sortArrow = (key: SortKey) => (sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
   const gridClass = snykConnected ? 'repo-health__table repo-health__table--snyk' : 'repo-health__table';
 
-  // Column template is driven by CSS variables so the repository column can be
-  // resized without touching the other columns' definitions.
-  const otherColCount =
-    (snykConnected ? 8 : 6) + (showPipelineCol ? 1 : 0) + (showDeployCol ? 1 : 0);
+  // Column template is built here so the Snyk Org column can be wider than the
+  // numeric ones, and the repository column can be resized.
   const repoColMin = repoColWidth ?? REPO_COL_DEFAULT;
+  const orgColMin = 190;
+  const wideExtra = 16;
+  const colTracks = [
+    ...Array(6).fill(`minmax(${OTHER_COL_MIN}px, 1fr)`),
+    ...(showPipelineCol ? [`minmax(${OTHER_COL_MIN + wideExtra}px, 1fr)`] : []),
+    ...(showDeployCol ? [`minmax(${OTHER_COL_MIN + wideExtra}px, 1fr)`] : []),
+    ...(snykConnected
+      ? [`minmax(${orgColMin}px, 2.5fr)`, `minmax(${OTHER_COL_MIN}px, 1fr)`, `minmax(${OTHER_COL_MIN}px, 1fr)`]
+      : []),
+  ];
+  const otherColCount = colTracks.length;
+  const otherMin =
+    6 * OTHER_COL_MIN +
+    (showPipelineCol ? OTHER_COL_MIN + wideExtra : 0) +
+    (showDeployCol ? OTHER_COL_MIN + wideExtra : 0) +
+    (snykConnected ? orgColMin + 2 * OTHER_COL_MIN : 0);
   const tableStyle = {
     '--repo-col': repoColWidth !== null ? `${repoColWidth}px` : `minmax(${REPO_COL_DEFAULT}px, 3fr)`,
-    '--other-col-count': otherColCount,
-    '--row-min-width': `${repoColMin + otherColCount * OTHER_COL_MIN + otherColCount * COL_GAP + ROW_PADDING_X}px`,
+    '--other-cols': colTracks.join(' '),
+    '--row-min-width': `${repoColMin + otherMin + otherColCount * COL_GAP + ROW_PADDING_X}px`,
   } as CSSProperties;
 
   const formatAge = (iso: string): string => {
@@ -481,101 +523,163 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
 
   return (
     <div className="repo-health">
-      {snykConnected && (
-        <div className="repo-health__snyk-bar">
-          <span className="repo-health__snyk-meta">
-            {snykLoading ? (
-              'Refreshing Snyk issue counts…'
-            ) : snykError ? (
-              <span className="repo-health__snyk-error-text">Snyk: {snykError}</span>
-            ) : snykDiag ? (
-              <>
-                Snyk: {snykDiag.criticalHighIssues} critical/high across{' '}
-                {Object.keys(snykCounts).length} repos
-                {snykFetchedAt && (
+      <div className="repo-health__sources">
+        <section className="repo-health__source" aria-labelledby="rh-src-snyk">
+          <h4 id="rh-src-snyk" className="repo-health__source-title">
+            Security · Snyk
+          </h4>
+          <p className="repo-health__source-desc">
+            Critical and high open issues per repository (Critical / High columns).
+          </p>
+          {snykConnected ? (
+            <>
+              <p className="repo-health__source-status">
+                {snykLoading ? (
+                  'Fetching issue counts from Snyk…'
+                ) : snykError ? (
+                  <span className="repo-health__snyk-error-text">Snyk: {snykError}</span>
+                ) : snykDiag ? (
                   <>
-                    {' · '}updated {formatAge(snykFetchedAt)}
-                    {snykFromCache ? ' (cached)' : ''}
+                    {snykDiag.criticalHighIssues} critical/high across{' '}
+                    {Object.keys(snykCounts).length} repos
+                    {snykFetchedAt && (
+                      <>
+                        {' · '}updated {formatAge(snykFetchedAt)}
+                        {snykFromCache ? ' (cached)' : ''}
+                      </>
+                    )}
                   </>
+                ) : (
+                  'Connected'
                 )}
-              </>
-            ) : (
-              'Snyk connected'
-            )}
-          </span>
-          <button
-            type="button"
-            className="repo-health__snyk-refresh"
-            onClick={() => loadSnyk(true)}
-            disabled={snykLoading}
-            title="Fetch fresh issue counts from Snyk now"
-          >
-            {snykLoading ? '↻ Refreshing…' : '↻ Refresh'}
-          </button>
-        </div>
-      )}
-      {api?.pipelineAudit && localRepoIdsKey && (
-        <div className="repo-health__snyk-bar repo-health__pipeline-bar">
-          <span className="repo-health__snyk-meta">
-            {auditLoading ? (
-              'Auditing pipelines…'
-            ) : auditError ? (
-              <span className="repo-health__snyk-error-text">Pipelines: {auditError}</span>
-            ) : audit?.credentialsError ? (
-              <span className="repo-health__snyk-error-text">AWS: {audit.credentialsError}</span>
-            ) : showPipelineCol ? (
-              <>
-                Pipelines: {pipelineSummary.snykProblems} with incomplete Snyk
-                {showDeployCol && (
+              </p>
+              <div className="repo-health__source-actions">
+                <button
+                  type="button"
+                  className="repo-health__action"
+                  onClick={() => loadSnyk(true)}
+                  disabled={snykLoading}
+                  title="Counts are cached for 6 hours. This fetches fresh data from Snyk now."
+                >
+                  {snykLoading ? '↻ Refreshing…' : '↻ Refresh from Snyk'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="repo-health__source-hint">
+              <strong>Not connected.</strong> Connect Snyk from the Connect section of the
+              dashboard to see which repositories carry the most critical and high issues, so you
+              can prioritise fixes without leaving this view.
+            </p>
+          )}
+        </section>
+
+        <section className="repo-health__source" aria-labelledby="rh-src-pipe">
+          <h4 id="rh-src-pipe" className="repo-health__source-title">
+            Pipelines · CDK + AWS
+          </h4>
+          <p className="repo-health__source-desc">
+            Checks each local repo&apos;s CodePipeline stack for complete Snyk scanning (monitor,
+            dependency test, code scan) and, optionally, that AWS is running that same pipeline.
+          </p>
+          {!api?.pipelineAudit || !localRepoIdsKey ? (
+            <p className="repo-health__source-hint">
+              <strong>No local repositories.</strong> Import repositories from a local folder so
+              their pipeline stacks can be read. Cloud-only repositories are not checked.
+            </p>
+          ) : (
+            <>
+              <p className="repo-health__source-status">
+                {auditLoading ? (
+                  awsProfile ? 'Checking source and AWS…' : 'Scanning pipeline stacks…'
+                ) : auditError ? (
+                  <span className="repo-health__snyk-error-text">{auditError}</span>
+                ) : audit?.credentialsError ? (
+                  <span className="repo-health__snyk-error-text">AWS: {audit.credentialsError}</span>
+                ) : showPipelineCol ? (
                   <>
-                    {' · '}
-                    {pipelineSummary.deployProblems} out of sync / not deployed (account{' '}
-                    {audit?.accountId})
+                    <strong>{pipelineSummary.snykProblems}</strong> with incomplete Snyk
+                    {showDeployCol && (
+                      <>
+                        {' · '}
+                        <strong>{pipelineSummary.deployProblems}</strong> out of sync or not
+                        deployed (account {audit?.accountId})
+                      </>
+                    )}
                   </>
+                ) : (
+                  'No CDK pipeline stacks found in local repositories'
                 )}
-              </>
-            ) : (
-              'No CDK pipeline stacks found in local repositories'
-            )}
-          </span>
-          <span className="repo-health__pipeline-controls">
-            <label className="repo-health__pipeline-check">
-              <input
-                type="checkbox"
-                checked={onlyProblems}
-                onChange={(e) => setOnlyProblems(e.target.checked)}
-              />
-              Problems only
-            </label>
-            <select
-              className="repo-health__pipeline-select"
-              aria-label="AWS profile for deployed pipeline check"
-              value={awsProfile}
-              onChange={(e) => setAwsProfile(e.target.value)}
-              disabled={auditLoading}
-            >
-              <option value="">AWS profile: none (source only)</option>
-              {awsProfiles.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                  {p.isSso ? ' (SSO)' : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="repo-health__snyk-refresh"
-              onClick={() => runAudit(awsProfile)}
-              disabled={auditLoading}
-              title={
-                awsProfile
-                  ? 'Compare pipelines in code with those deployed in the selected AWS account'
-                  : 'Re-scan pipeline stacks in source'
-              }
-            >
-              {auditLoading ? '↻ Checking…' : awsProfile ? '↻ Check deployed' : '↻ Rescan'}
-            </button>
-          </span>
+              </p>
+              <div className="repo-health__source-actions">
+                <button
+                  type="button"
+                  className="repo-health__action"
+                  onClick={() => runAudit(awsProfile)}
+                  disabled={auditLoading}
+                  title="Re-read the pipeline stacks from your local checkouts (and re-query AWS if a profile is selected)"
+                >
+                  {auditLoading ? '↻ Scanning…' : '↻ Rescan'}
+                </button>
+              </div>
+              <div className="repo-health__aws">
+                <label className="repo-health__aws-label" htmlFor="rh-aws-profile">
+                  Compare with AWS (optional)
+                </label>
+                {awsProfiles.length > 0 ? (
+                  <>
+                    <select
+                      id="rh-aws-profile"
+                      className="repo-health__pipeline-select"
+                      value={awsProfile}
+                      onChange={(e) => setAwsProfile(e.target.value)}
+                      disabled={auditLoading}
+                    >
+                      <option value="">Source only (no AWS)</option>
+                      {awsProfiles.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                          {p.isSso ? ' (SSO)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="repo-health__action"
+                      onClick={() => runAudit(awsProfile)}
+                      disabled={auditLoading || !awsProfile}
+                      title="Look up each pipeline in the profile's account and compare it with the code"
+                    >
+                      Check deployed
+                    </button>
+                    <p className="repo-health__source-hint">
+                      {awsProfile
+                        ? 'Read-only. Finds pipelines that are stale, missing, or running an older Snyk scan than the code defines. Needs an active login (aws sso login --profile …).'
+                        : 'Pick a profile to also verify the pipeline deployed in that account matches your code, which flags stale or undeployed pipelines.'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="repo-health__source-hint">
+                    <strong>No AWS profiles found</strong> in ~/.aws. Add one (for example{' '}
+                    <code>aws configure sso</code>) to also check that each deployed pipeline
+                    matches the code and is running the current Snyk scan.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+      {showPipelineCol && (
+        <div className="repo-health__toolbar">
+          <label className="repo-health__pipeline-check">
+            <input
+              type="checkbox"
+              checked={onlyProblems}
+              onChange={(e) => setOnlyProblems(e.target.checked)}
+            />
+            Only show repositories with pipeline problems
+          </label>
         </div>
       )}
       <div className={gridClass} style={tableStyle}>
@@ -608,6 +712,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
           <button type="button" className="repo-health__sort" onClick={() => toggleSort('uniqueContributors')}>Contributors{sortArrow('uniqueContributors')}</button>
           {showPipelineCol && <button type="button" className="repo-health__sort" title="Snyk scanning completeness in the CDK pipeline stack (monitor, SCA, SAST)" onClick={() => toggleSort('pipeline')}>Pipeline Snyk{sortArrow('pipeline')}</button>}
           {showDeployCol && <button type="button" className="repo-health__sort" title="Is the deployed CodePipeline the one in code?" onClick={() => toggleSort('deployed')}>Deployed{sortArrow('deployed')}</button>}
+          {snykConnected && <button type="button" className="repo-health__sort" title="Snyk organization(s) that hold this repository's projects, and how many projects" onClick={() => toggleSort('snykOrg')}>Snyk Org{sortArrow('snykOrg')}</button>}
           {snykConnected && <button type="button" className="repo-health__sort" title="Snyk critical open issues" onClick={() => toggleSort('critical')}>Critical{sortArrow('critical')}</button>}
           {snykConnected && <button type="button" className="repo-health__sort" title="Snyk high open issues" onClick={() => toggleSort('high')}>High{sortArrow('high')}</button>}
         </div>
@@ -625,7 +730,7 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
               </span>
               <span>{r.totalCommits}</span>
               <span className={`repo-health__staleness ${stalenessClass(r.daysSinceLastCommit)}`}>
-                {r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
+                {r.daysSinceLastCommit === null ? 'None in range' : r.daysSinceLastCommit === 0 ? 'Today' : `${r.daysSinceLastCommit}d ago`}
               </span>
               <span>{r.commitsPerWeek}</span>
               <span
@@ -696,6 +801,29 @@ export function RepoHealthWidget({ commits, repositories, authorGrouping }: Char
                   {pipe ? DEPLOY_LABEL[pipe.worst.deployStatus] : '—'}
                 </span>
               )}
+              {snykConnected && (() => {
+                const proj = lookupProject(r.repoName);
+                const labels = proj?.orgs.map((o) => o.slug ?? o.name ?? o.id) ?? [];
+                const expected = pipe?.all.map((e) => e.snykOrg).filter(Boolean) as string[] | undefined;
+                const mismatch =
+                  !!proj && !!expected?.length && !expected.some((x) => labels.includes(x));
+                return (
+                  <span
+                    className={`repo-health__snyk-org ${
+                      !proj ? 'repo-health__snyk-org--none' : mismatch ? 'repo-health__snyk-org--mismatch' : ''
+                    }`}
+                    title={
+                      !proj
+                        ? 'No Snyk projects found for this repository'
+                        : `${proj.projectCount} project${proj.projectCount === 1 ? '' : 's'} · ${
+                            proj.origins.join(', ') || 'unknown origin'
+                          }${mismatch ? `\nPipeline scans into "${expected!.join(', ')}" but projects are in "${labels.join(', ')}"` : ''}`
+                    }
+                  >
+                    {proj ? `${labels.join(', ')} · ${proj.projectCount}` : 'Not in Snyk'}
+                  </span>
+                );
+              })()}
               {snykConnected && (
                 <span className={`repo-health__sev repo-health__sev--critical ${snyk && snyk.critical > 0 ? 'repo-health__sev--active' : ''}`}>
                   {snyk ? snyk.critical : 0}

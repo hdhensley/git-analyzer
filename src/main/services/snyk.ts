@@ -6,6 +6,7 @@ import type {
   SnykConnectResult,
   SnykHealthResult,
   SnykRepoIssueCounts,
+  SnykRepoProjectInfo,
 } from '../../shared/types';
 
 const SNYK_API_BASE = 'https://api.snyk.io';
@@ -26,7 +27,7 @@ interface SnykOrg {
 
 interface SnykProject {
   id: string;
-  attributes?: { name?: string };
+  attributes?: { name?: string; origin?: string };
 }
 
 interface SnykIssue {
@@ -250,14 +251,16 @@ export class SnykService {
    * every returned issue is attributed to a known project by construction.
    */
   /** Lists every org the token can access. */
-  private async listOrgs(token: string): Promise<Array<{ id: string; name?: string }>> {
-    const orgs: Array<{ id: string; name?: string }> = [];
+  private async listOrgs(
+    token: string
+  ): Promise<Array<{ id: string; name?: string; slug?: string }>> {
+    const orgs: Array<{ id: string; name?: string; slug?: string }> = [];
     await this.paginate<SnykOrg>(
       `/rest/orgs?version=${SNYK_API_VERSION}&limit=${PAGE_LIMIT}`,
       token,
       (page) => {
         for (const o of page) {
-          orgs.push({ id: o.id, name: o.attributes?.name });
+          orgs.push({ id: o.id, name: o.attributes?.name, slug: o.attributes?.slug });
         }
       }
     );
@@ -267,10 +270,12 @@ export class SnykService {
   /** Counts critical/high open issues per project within a single org. */
   private async collectOrgCounts(
     token: string,
-    orgId: string,
+    org: { id: string; name?: string; slug?: string },
     counts: Map<string, SnykRepoIssueCounts>,
-    projectNames: string[]
+    projectNames: string[],
+    projectInfo: Map<string, SnykRepoProjectInfo>
   ): Promise<{ totalIssues: number; criticalHighIssues: number }> {
+    const orgId = org.id;
     const projects: Array<{ id: string; repoName: string }> = [];
     await this.paginate<SnykProject>(
       `/rest/orgs/${orgId}/projects?version=${SNYK_API_VERSION}&limit=${PAGE_LIMIT}`,
@@ -279,7 +284,17 @@ export class SnykService {
         for (const p of page) {
           const repoName = this.normalizeRepoName(p.attributes?.name ?? '');
           projects.push({ id: p.id, repoName });
-          if (repoName) projectNames.push(repoName);
+          if (repoName) {
+            projectNames.push(repoName);
+            const info = projectInfo.get(repoName) ?? { orgs: [], projectCount: 0, origins: [] };
+            info.projectCount += 1;
+            if (!info.orgs.some((o) => o.id === org.id)) {
+              info.orgs.push({ id: org.id, name: org.name, slug: org.slug });
+            }
+            const origin = p.attributes?.origin;
+            if (origin && !info.origins.includes(origin)) info.origins.push(origin);
+            projectInfo.set(repoName, info);
+          }
         }
       }
     );
@@ -337,7 +352,10 @@ export class SnykService {
       if (ageMs < CACHE_TTL_MS) {
         try {
           const parsed = JSON.parse(cache.payload) as SnykHealthResult;
-          return { ...parsed, cached: true, stale: false };
+          // Caches written before project/org data existed are refetched once.
+          if (parsed.projectsByRepoName) {
+            return { ...parsed, cached: true, stale: false };
+          }
         } catch {
           // Corrupt cache: fall through to a live fetch.
         }
@@ -382,11 +400,12 @@ export class SnykService {
 
     const counts = new Map<string, SnykRepoIssueCounts>();
     const projectNames: string[] = [];
+    const projectInfo = new Map<string, SnykRepoProjectInfo>();
     let totalIssues = 0;
     let criticalHighIssues = 0;
 
     for (const org of orgs) {
-      const result = await this.collectOrgCounts(token, org.id, counts, projectNames);
+      const result = await this.collectOrgCounts(token, org, counts, projectNames, projectInfo);
       totalIssues += result.totalIssues;
       criticalHighIssues += result.criticalHighIssues;
     }
@@ -410,6 +429,7 @@ export class SnykService {
     return {
       fetchedAt: new Date().toISOString(),
       countsByRepoName,
+      projectsByRepoName: Object.fromEntries(projectInfo),
       diagnostics: {
         totalIssues,
         criticalHighIssues,

@@ -26,12 +26,22 @@ export interface SnykRepoIssueCounts {
   high: number;
 }
 
+// Where a repository's projects live in Snyk (which org(s), how many projects).
+// Present even for repos with zero issues, unlike SnykRepoIssueCounts.
+export interface SnykRepoProjectInfo {
+  orgs: Array<{ id: string; name?: string; slug?: string }>;
+  projectCount: number;
+  origins: string[]; // e.g. "cli", "bitbucket-connect-app"
+}
+
 // Aggregate result returned to the renderer. `countsByRepoName` is keyed by the
 // lowercased repository name so the Repository Health widget can look up counts
 // without caring about the exact Snyk target naming.
 export interface SnykHealthResult {
   fetchedAt: string; // ISO timestamp of when counts were fetched
   countsByRepoName: Record<string, SnykRepoIssueCounts>;
+  // Keyed like `countsByRepoName`; lists the Snyk org(s)/projects for each repo.
+  projectsByRepoName?: Record<string, SnykRepoProjectInfo>;
   // True when these counts came from the local cache rather than a live fetch.
   cached?: boolean;
   // True when the cached counts are older than the TTL (a background/forced
