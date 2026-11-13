@@ -1,7 +1,21 @@
-.day-hour-heatmap { display: flex; flex-direction: column; gap: 0.75rem; }
-.day-hour-heatmap--empty { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-muted); }
+.day-hour-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.day-hour-heatmap--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-muted);
+}
 
-.day-hour-heatmap__grid-wrapper { overflow-x: auto; overflow-y: visible; position: relative; }
+.day-hour-heatmap__grid-wrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+  position: relative;
+}
 
 .day-hour-heatmap__table {
   border-collapse: separate;
@@ -41,11 +55,21 @@
   cursor: default;
 }
 
-.day-hour-heatmap__cell--level-0 { background: var(--bg-secondary); }
-.day-hour-heatmap__cell--level-1 { background: var(--heat-1); }
-.day-hour-heatmap__cell--level-2 { background: var(--heat-2); }
-.day-hour-heatmap__cell--level-3 { background: var(--heat-3); }
-.day-hour-heatmap__cell--level-4 { background: var(--heat-4); }
+.day-hour-heatmap__cell--level-0 {
+  background: var(--bg-secondary);
+}
+.day-hour-heatmap__cell--level-1 {
+  background: var(--heat-1);
+}
+.day-hour-heatmap__cell--level-2 {
+  background: var(--heat-2);
+}
+.day-hour-heatmap__cell--level-3 {
+  background: var(--heat-3);
+}
+.day-hour-heatmap__cell--level-4 {
+  background: var(--heat-4);
+}
 
 .day-hour-heatmap__cell:hover::after {
   content: attr(data-tooltip);
@@ -64,13 +88,13 @@
 }
 
 /* Keep tooltips from clipping on the left edge */
-.day-hour-heatmap__table tr td:nth-child(-n+5) .day-hour-heatmap__cell:hover::after {
+.day-hour-heatmap__table tr td:nth-child(-n + 5) .day-hour-heatmap__cell:hover::after {
   left: 0;
   transform: none;
 }
 
 /* Keep tooltips from clipping on the right edge */
-.day-hour-heatmap__table tr td:nth-last-child(-n+4) .day-hour-heatmap__cell:hover::after {
+.day-hour-heatmap__table tr td:nth-last-child(-n + 4) .day-hour-heatmap__cell:hover::after {
   left: auto;
   right: 0;
   transform: none;

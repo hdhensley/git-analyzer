@@ -194,7 +194,10 @@
   opacity: 0;
   flex-shrink: 0;
   margin-left: auto;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .repository-filter__item:hover .repository-filter__remove-btn {
@@ -211,7 +214,6 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
-
 
 /* Source filter buttons */
 .repository-filter__source-filter {
@@ -263,7 +265,9 @@
   color: var(--color-muted);
   font-size: 0.75rem;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .repository-filter__search-clear:hover {
@@ -278,7 +282,9 @@
   background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .repository-filter__source-btn:hover {

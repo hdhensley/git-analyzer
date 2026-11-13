@@ -6,7 +6,11 @@
   border-radius: var(--radius-lg);
   overflow: visible;
   box-shadow: var(--shadow-sm);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition:
+    background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
   width: 100%;
   min-width: 0;
 }
@@ -66,7 +70,11 @@
   color: var(--color-muted);
   font-size: 0.75rem;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
   flex-shrink: 0;
 }
 

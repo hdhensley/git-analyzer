@@ -64,7 +64,9 @@
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s;
 }
 
 .auth-status__btn:disabled {
@@ -120,7 +122,9 @@
   font-weight: 500;
   cursor: pointer;
   color: var(--color-muted);
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .auth-status__tab:hover {

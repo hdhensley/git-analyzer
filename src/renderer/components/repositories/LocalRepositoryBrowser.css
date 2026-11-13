@@ -235,7 +235,11 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition:
+    background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
   background: var(--bg-primary);
   position: relative;
 }
@@ -246,7 +250,7 @@
   box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 8%, transparent);
 }
 
-.local-repo-browser__item input[type="checkbox"] {
+.local-repo-browser__item input[type='checkbox'] {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;

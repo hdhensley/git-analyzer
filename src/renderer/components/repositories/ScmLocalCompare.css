@@ -337,4 +337,8 @@
   color: var(--color-primary);
 }
 
-.scm-compare__intro { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--color-muted); }
+.scm-compare__intro {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}

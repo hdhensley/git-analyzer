@@ -84,7 +84,9 @@ html {
 
 body {
   font-family: var(--font-ui);
-  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  font-feature-settings:
+    'tnum' 1,
+    'cv11' 1;
   letter-spacing: -0.003em;
   background-color: var(--bg-secondary);
   color: var(--text-primary);
