@@ -12,7 +12,7 @@
 .scm-compare__empty {
   padding: 2rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .scm-compare__notice {
@@ -21,8 +21,8 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1.5rem;
-  background: var(--bg-secondary, #f3f4f6);
-  border-radius: 6px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
 }
 
 .scm-compare__error {
@@ -30,18 +30,18 @@
   align-items: center;
   gap: 0.75rem;
   padding: 1rem;
-  background: var(--color-danger-bg, #fef2f2);
-  color: var(--color-danger, #ef4444);
-  border-radius: 6px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-radius: var(--radius);
 }
 
 .scm-compare__error button {
   margin-left: auto;
   padding: 0.25rem 0.75rem;
   border: none;
-  border-radius: 4px;
-  background: var(--color-danger, #ef4444);
-  color: white;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+  color: var(--on-accent);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -58,21 +58,21 @@
 
 .scm-compare__source-btn {
   padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: white;
+  background: var(--bg-primary);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .scm-compare__source-btn:hover:not(:disabled) {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .scm-compare__source-btn--active {
-  background: var(--color-primary, #2563eb);
-  border-color: var(--color-primary, #2563eb);
-  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--on-accent);
 }
 
 .scm-compare__source-btn:disabled {
@@ -96,9 +96,7 @@
 .scm-compare__label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-muted, #6b7280);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  color: var(--color-muted);
   /* Keep a fixed label height so the control inputs below align across columns. */
   line-height: 1.2;
   min-height: 0.9rem;
@@ -108,15 +106,15 @@
   min-width: 20rem;
   height: 2.5rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
   font-size: 0.875rem;
 }
 
 .scm-compare__folder-path {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   word-break: break-all;
   max-width: 24rem;
 }
@@ -124,9 +122,9 @@
 .scm-compare__primary-btn {
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 6px;
-  background: var(--color-primary, #2563eb);
-  color: white;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--on-accent);
   font-size: 0.875rem;
   cursor: pointer;
 }
@@ -139,15 +137,15 @@
 .scm-compare__secondary-btn {
   height: 2.5rem;
   padding: 0 1rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
   font-size: 0.875rem;
   cursor: pointer;
 }
 
 .scm-compare__secondary-btn:hover:not(:disabled) {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .scm-compare__secondary-btn:disabled {
@@ -160,21 +158,21 @@
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .scm-compare__summary-item {
   font-size: 0.875rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .scm-compare__summary-item--present {
-  color: var(--color-success, #16a34a);
+  color: var(--color-success);
   font-weight: 600;
 }
 
 .scm-compare__summary-item--missing {
-  color: var(--color-warning, #d97706);
+  color: var(--color-warning);
   font-weight: 600;
 }
 
@@ -194,19 +192,19 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
 }
 
 .scm-compare__row--present {
-  border-color: var(--color-success-border, #bbf7d0);
-  background: var(--color-success-bg, #f0fdf4);
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
 }
 
 .scm-compare__row--missing {
-  border-color: var(--color-warning-border, #fde68a);
-  background: var(--color-warning-bg, #fffbeb);
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-bg);
 }
 
 .scm-compare__row-main {
@@ -229,7 +227,7 @@
 }
 
 .scm-compare__branch {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   white-space: nowrap;
 }
 
@@ -237,12 +235,12 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 0.65rem;
-  color: var(--color-muted, #9ca3af);
+  color: var(--color-muted);
 }
 
 .scm-compare__branch-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--color-text, #374151);
+  color: var(--color-text);
 }
 
 .scm-compare__row-status {
@@ -256,50 +254,50 @@
   font-size: 0.75rem;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  background: var(--bg-secondary, #f3f4f6);
-  color: var(--color-muted, #6b7280);
+  background: var(--bg-secondary);
+  color: var(--color-muted);
   white-space: nowrap;
 }
 
 .scm-compare__badge--present {
-  background: var(--color-success-bg, #f0fdf4);
-  color: var(--color-success, #16a34a);
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .scm-compare__badge--missing {
-  background: var(--color-warning-bg, #fffbeb);
-  color: var(--color-warning, #d97706);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 .scm-compare__badge--cloning {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--accent-soft);
+  color: var(--color-primary-dark);
 }
 
 .scm-compare__badge--complete {
-  background: var(--color-success-bg, #f0fdf4);
-  color: var(--color-success, #16a34a);
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .scm-compare__badge--error {
-  background: var(--color-danger-bg, #fef2f2);
-  color: var(--color-danger, #ef4444);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
   white-space: normal;
 }
 
 .scm-compare__clone-btn {
   padding: 0.3rem 0.75rem;
-  border: 1px solid var(--color-primary, #2563eb);
-  border-radius: 6px;
-  background: white;
-  color: var(--color-primary, #2563eb);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--color-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .scm-compare__clone-btn:hover:not(:disabled) {
-  background: var(--color-primary, #2563eb);
-  color: white;
+  background: var(--color-primary);
+  color: var(--on-accent);
 }
 
 .scm-compare__clone-btn:disabled {
@@ -309,7 +307,7 @@
 
 /* Local-only: directories present in the folder but absent from the project. */
 .scm-compare__summary-item--local-only {
-  color: #4f46e5;
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -326,17 +324,17 @@
 .scm-compare__local-only-desc {
   margin: 0 0 0.5rem;
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .scm-compare__row--local-only {
-  border-color: #c7d2fe;
-  background: #eef2ff;
+  border-color: color-mix(in oklch, var(--color-primary) 30%, var(--bg-primary));
+  background: var(--accent-soft);
 }
 
 .scm-compare__badge--local-only {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--accent-soft);
+  color: var(--color-primary);
 }
 
-.scm-compare__intro { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--color-muted, #6b7280); }
+.scm-compare__intro { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--color-muted); }

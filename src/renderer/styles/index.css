@@ -1,3 +1,11 @@
+/*
+ * Design tokens. Every component stylesheet reads from here; do not
+ * hardcode colours, radii or shadows in component CSS.
+ *
+ * Neutrals carry a faint warm tint (hue 95) so surfaces feel like paper
+ * rather than default grey. The accent is an ink teal; success green and
+ * danger red stay clearly separate from it.
+ */
 * {
   margin: 0;
   padding: 0;
@@ -5,31 +13,179 @@
 }
 
 :root {
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-  --color-success: #22c55e;
-  --color-success-bg: #f0fdf4;
-  --color-danger: #ef4444;
-  --color-danger-dark: #dc2626;
-  --color-danger-bg: #fef2f2;
-  --color-warning: #f59e0b;
-  --color-warning-bg: #fffbeb;
-  --color-muted: #6b7280;
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-tertiary: #f3f4f6;
-  --border-color: #e5e7eb;
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg-primary: oklch(0.997 0.002 95);
+  --bg-secondary: oklch(0.975 0.006 95);
+  --bg-tertiary: oklch(0.953 0.008 95);
+  --bg-hover: oklch(0.962 0.008 95);
+  --border-color: oklch(0.912 0.008 95);
+  --color-border: var(--border-color);
+  --border-strong: oklch(0.84 0.01 95);
+
+  /* Text */
+  --text-primary: oklch(0.22 0.012 95);
+  --color-text: var(--text-primary);
+  --text-secondary: oklch(0.4 0.012 95);
+  --color-muted: oklch(0.5 0.012 95);
+  --text-faint: oklch(0.56 0.012 95);
+
+  /* Accent */
+  --color-primary: oklch(0.5 0.1 195);
+  --color-primary-dark: oklch(0.42 0.095 195);
+  --color-primary-hover: var(--color-primary-dark);
+  --accent-soft: oklch(0.962 0.022 195);
+  --accent-ring: color-mix(in oklch, var(--color-primary) 38%, transparent);
+  --on-accent: oklch(0.99 0.004 195);
+
+  /* Status */
+  --color-success: oklch(0.62 0.15 150);
+  --color-success-dark: oklch(0.5 0.13 150);
+  --color-success-bg: oklch(0.969 0.026 150);
+  --color-success-border: oklch(0.88 0.07 150);
+  --color-warning: oklch(0.76 0.15 75);
+  --color-warning-dark: oklch(0.53 0.12 60);
+  --color-warning-bg: oklch(0.975 0.03 85);
+  --color-warning-border: oklch(0.88 0.08 80);
+  --color-danger: oklch(0.58 0.2 27);
+  --color-danger-dark: oklch(0.47 0.18 27);
+  --color-danger-bg: oklch(0.971 0.016 25);
+  --color-danger-border: oklch(0.88 0.06 25);
+
+  /* Contribution heat ramp (accent hue, light to strong) */
+  --heat-0: oklch(0.945 0.008 95);
+  --heat-1: oklch(0.88 0.06 195);
+  --heat-2: oklch(0.76 0.09 195);
+  --heat-3: oklch(0.6 0.1 195);
+  --heat-4: oklch(0.44 0.09 195);
+
+  /* Shape and depth */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px oklch(0.25 0.02 95 / 0.06);
+  --shadow-pop: 0 1px 2px oklch(0.25 0.02 95 / 0.08), 0 12px 32px oklch(0.25 0.02 95 / 0.16);
+  --scrim: oklch(0.2 0.02 95 / 0.42);
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 140ms;
+
+  /* Type */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-ui);
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  letter-spacing: -0.003em;
   background-color: var(--bg-secondary);
-  color: #1f2937;
+  color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+
+/* Browser surfaces that default to no design at all */
+::selection {
+  background: color-mix(in oklch, var(--color-primary) 22%, transparent);
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  caret-color: var(--color-primary);
+  accent-color: var(--color-primary);
+}
+
+::placeholder {
+  color: var(--text-faint);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* One focus ring for every control; mouse clicks stay quiet */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+button,
+[role='button'],
+a,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

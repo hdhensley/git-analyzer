@@ -8,9 +8,9 @@
 .repository-filter--empty {
   padding: 1rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 6px;
+  color: var(--color-muted);
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
 }
 
 .repository-filter__header {
@@ -30,15 +30,15 @@
 
 .repository-filter__actions button {
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .repository-filter__actions button:hover {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .repository-filter__list {
@@ -55,12 +55,12 @@
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .repository-filter__item:hover {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
 }
 
 .repository-filter__item input {
@@ -95,17 +95,17 @@
 /* Unavailable repository styling */
 .repository-filter__item--unavailable {
   opacity: 0.6;
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
   cursor: not-allowed;
 }
 
 .repository-filter__item--unavailable:hover {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
 }
 
 .repository-filter__item--unavailable .repository-filter__name {
   text-decoration: line-through;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 /* Provider icon */
@@ -137,23 +137,23 @@
 }
 
 .repository-filter__badge--github {
-  background: #f0f0f0;
-  color: #24292e;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .repository-filter__badge--bitbucket {
-  background: #e6f0ff;
-  color: #0052cc;
+  background: oklch(0.955 0.03 255);
+  color: oklch(0.45 0.15 255);
 }
 
 .repository-filter__badge--local {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--color-success-bg);
+  color: var(--color-success-dark);
 }
 
 .repository-filter__badge--folder {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 /* Unavailable warning icon */
@@ -164,15 +164,15 @@
 
 .repository-filter__count {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   flex-shrink: 0;
 }
 
 .repository-filter__warning {
   padding: 0.5rem;
-  background: var(--color-warning-bg, #fffbeb);
-  color: var(--color-warning, #f59e0b);
-  border-radius: 4px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   text-align: center;
 }
@@ -186,9 +186,9 @@
   height: 1.25rem;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-size: 0.75rem;
   cursor: pointer;
   opacity: 0;
@@ -202,13 +202,13 @@
 }
 
 .repository-filter__remove-btn:hover {
-  background: var(--color-danger-bg, #fee2e2);
-  color: var(--color-danger, #dc2626);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .repository-filter__remove-btn:focus {
   opacity: 1;
-  outline: 2px solid var(--color-primary, #3b82f6);
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 
@@ -219,7 +219,7 @@
   gap: 0.25rem;
   flex-wrap: wrap;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* Search input */
@@ -231,19 +231,19 @@
 .repository-filter__search-input {
   width: 100%;
   padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
   font-size: 0.875rem;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .repository-filter__search-input:focus {
-  border-color: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary);
 }
 
 .repository-filter__search-input::placeholder {
-  color: var(--color-muted, #9ca3af);
+  color: var(--color-muted);
 }
 
 .repository-filter__search-clear {
@@ -258,49 +258,49 @@
   height: 1.25rem;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-size: 0.75rem;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .repository-filter__search-clear:hover {
-  background: var(--bg-secondary, #f3f4f6);
-  color: var(--color-danger, #dc2626);
+  background: var(--bg-secondary);
+  color: var(--color-danger);
 }
 
 .repository-filter__source-btn {
   padding: 0.375rem 0.625rem;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color);
   border-radius: 9999px;
-  background: white;
+  background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .repository-filter__source-btn:hover {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .repository-filter__source-btn--active {
-  background: var(--color-primary, #3b82f6);
-  border-color: var(--color-primary, #3b82f6);
-  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--on-accent);
 }
 
 .repository-filter__source-btn--active:hover {
-  background: var(--color-primary-dark, #2563eb);
-  border-color: var(--color-primary-dark, #2563eb);
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
 }
 
 /* Empty filter message */
 .repository-filter__empty-filter {
   padding: 1rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-size: 0.875rem;
 }
 
@@ -310,5 +310,5 @@
   gap: 0.25rem;
   flex-wrap: wrap;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
 }

@@ -21,15 +21,15 @@
 
 .branch-filter__actions button {
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .branch-filter__actions button:hover {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .branch-filter__list {
@@ -45,12 +45,12 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .branch-filter__item:hover {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
 }
 
 .branch-filter__item input {
@@ -70,9 +70,9 @@
 
 .branch-filter__warning {
   padding: 0.5rem;
-  background: var(--color-warning-bg, #fffbeb);
-  color: var(--color-warning, #f59e0b);
-  border-radius: 4px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   text-align: center;
 }

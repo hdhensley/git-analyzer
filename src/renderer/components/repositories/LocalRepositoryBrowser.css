@@ -16,21 +16,21 @@
 
 .local-repo-browser__cancel-btn {
   padding: 0.25rem 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .local-repo-browser__cancel-btn:hover {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .local-repo-browser__loading {
   padding: 2rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__error {
@@ -38,18 +38,18 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1rem;
-  background: var(--color-danger-bg, #fef2f2);
-  color: var(--color-danger, #ef4444);
-  border-radius: 6px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-radius: var(--radius);
 }
 
 .local-repo-browser__error button {
   margin-left: auto;
   padding: 0.25rem 0.75rem;
   border: none;
-  border-radius: 4px;
-  background: var(--color-danger, #ef4444);
-  color: white;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+  color: var(--on-accent);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -69,7 +69,7 @@
 }
 
 .local-repo-browser__link {
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
   text-decoration: underline;
 }
 
@@ -80,22 +80,22 @@
   gap: 1rem;
   padding: 2rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__select-btn {
   padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-primary, #3b82f6);
-  border-radius: 6px;
-  background: var(--color-primary, #3b82f6);
-  color: white;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--on-accent);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .local-repo-browser__select-btn:hover {
-  background: var(--color-primary-dark, #2563eb);
+  background: var(--color-primary-dark);
 }
 
 .local-repo-browser__scanning,
@@ -111,8 +111,8 @@
 .local-repo-browser__spinner {
   width: 2rem;
   height: 2rem;
-  border: 3px solid var(--border-color, #e5e7eb);
-  border-top-color: var(--color-primary, #3b82f6);
+  border: 3px solid var(--border-color);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -138,7 +138,7 @@
 }
 
 .local-repo-browser__progress-label {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__progress-value {
@@ -147,7 +147,7 @@
 
 .local-repo-browser__progress-path {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -163,13 +163,13 @@
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
 }
 
 .local-repo-browser__directory-label {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__directory-path {
@@ -186,7 +186,7 @@
   gap: 1rem;
   padding: 2rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__actions {
@@ -194,27 +194,27 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 6px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
 }
 
 .local-repo-browser__actions button {
   padding: 0.25rem 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .local-repo-browser__actions button:hover {
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary);
 }
 
 .local-repo-browser__count {
   margin-left: auto;
   font-size: 0.875rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__items {
@@ -232,18 +232,18 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 1rem;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.2s;
-  background: white;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  background: var(--bg-primary);
   position: relative;
 }
 
 .local-repo-browser__item:hover {
-  border-color: var(--color-primary, #3b82f6);
-  background: var(--bg-secondary, #f9fafb);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+  border-color: var(--color-primary);
+  background: var(--bg-secondary);
+  box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 8%, transparent);
 }
 
 .local-repo-browser__item input[type="checkbox"] {
@@ -271,7 +271,7 @@
 .local-repo-browser__item-path {
   font-size: 0.7rem;
   font-family: monospace;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -279,7 +279,7 @@
 
 .local-repo-browser__item-branch {
   font-size: 0.7rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -291,32 +291,32 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-success, #22c55e);
+  background: var(--color-success);
   flex-shrink: 0;
 }
 
 .local-repo-browser__item--selected {
-  border-color: var(--color-primary, #3b82f6);
-  background: #eff6ff;
+  border-color: var(--color-primary);
+  background: var(--accent-soft);
 }
 
 .local-repo-browser__warnings {
   padding: 0.75rem;
-  background: var(--color-warning-bg, #fffbeb);
-  border-radius: 6px;
+  background: var(--color-warning-bg);
+  border-radius: var(--radius);
   font-size: 0.875rem;
 }
 
 .local-repo-browser__warnings summary {
   cursor: pointer;
-  color: var(--color-warning, #f59e0b);
+  color: var(--color-warning);
 }
 
 .local-repo-browser__warnings ul {
   margin: 0.5rem 0 0 0;
   padding-left: 1.5rem;
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__footer {
@@ -324,26 +324,26 @@
   justify-content: space-between;
   gap: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color);
 }
 
 .local-repo-browser__import-btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 6px;
-  background: var(--color-success, #22c55e);
-  color: white;
+  border-radius: var(--radius);
+  background: var(--color-success);
+  color: var(--on-accent);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .local-repo-browser__import-btn:hover:not(:disabled) {
-  background: var(--color-success-dark, #16a34a);
+  background: var(--color-success-dark);
 }
 
 .local-repo-browser__import-btn:disabled {
-  background: var(--color-muted, #9ca3af);
+  background: var(--color-muted);
   cursor: not-allowed;
 }
 
@@ -360,17 +360,17 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  border-radius: 6px;
-  background: var(--bg-secondary, #f9fafb);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
   text-align: left;
 }
 
 .local-repo-browser__import-item--complete {
-  background: var(--color-success-bg, #f0fdf4);
+  background: var(--color-success-bg);
 }
 
 .local-repo-browser__import-item--error {
-  background: var(--color-danger-bg, #fef2f2);
+  background: var(--color-danger-bg);
 }
 
 .local-repo-browser__import-icon {
@@ -390,17 +390,17 @@
 
 .local-repo-browser__import-status {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .local-repo-browser__import-item--error .local-repo-browser__import-status {
-  color: var(--color-danger, #ef4444);
+  color: var(--color-danger);
 }
 
 .local-repo-browser__import-summary {
   padding: 1rem;
-  background: var(--color-success-bg, #f0fdf4);
-  border-radius: 6px;
+  background: var(--color-success-bg);
+  border-radius: var(--radius);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -411,20 +411,20 @@
 
 .local-repo-browser__import-summary-text {
   margin: 0;
-  color: var(--color-success, #22c55e);
+  color: var(--color-success);
   font-weight: 500;
 }
 
 .local-repo-browser__import-summary-errors {
-  color: var(--color-danger, #ef4444);
+  color: var(--color-danger);
 }
 
 .local-repo-browser__continue-btn {
   padding: 0.5rem 1.5rem;
   border: none;
-  border-radius: 6px;
-  background: var(--color-primary, #3b82f6);
-  color: white;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--on-accent);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -432,5 +432,5 @@
 }
 
 .local-repo-browser__continue-btn:hover {
-  background: var(--color-primary-dark, #2563eb);
+  background: var(--color-primary-dark);
 }

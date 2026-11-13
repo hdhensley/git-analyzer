@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   min-height: 160px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .default-branch__summary {
@@ -19,11 +19,11 @@
 }
 
 .default-branch__summary-ok {
-  color: var(--color-success, #15803d);
+  color: var(--color-success);
 }
 
 .default-branch__summary-warn {
-  color: var(--color-warning, #b45309);
+  color: var(--color-warning);
   font-weight: 600;
 }
 
@@ -37,30 +37,30 @@
 .default-branch__table td {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
   vertical-align: top;
 }
 
 .default-branch__table th {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .default-branch__repo-folder {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .default-branch__source {
   white-space: nowrap;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .default-branch__branch code,
 .default-branch__suggestion code {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85em;
 }
 
@@ -81,31 +81,31 @@
 }
 
 .default-branch__badge--on-target {
-  background: var(--color-success-bg, #dcfce7);
-  color: var(--color-success, #15803d);
-  border-color: var(--color-success, #15803d);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .default-branch__badge--needs-conversion {
-  background: var(--color-warning-bg, #fef3c7);
-  color: var(--color-warning, #b45309);
-  border-color: var(--color-warning, #b45309);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .default-branch__suggestion {
   font-size: 0.8rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .default-branch__note {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   line-height: 1.4;
 }
 
 .default-branch__note code {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   padding: 0.05rem 0.3rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }

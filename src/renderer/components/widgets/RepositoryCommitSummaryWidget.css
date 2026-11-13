@@ -11,12 +11,12 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .repo-commit-summary__repository {
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
   overflow: hidden;
   width: 100%;
   min-width: 0;
@@ -29,18 +29,18 @@
   width: 100%;
   padding: 0.75rem;
   border: none;
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
   cursor: pointer;
   text-align: left;
 }
 
 .repo-commit-summary__repo-header:hover {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .repo-commit-summary__expand-icon {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .repo-commit-summary__repo-info {
@@ -56,13 +56,13 @@
 
 .repo-commit-summary__repo-stats {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .repo-commit-summary__messages {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color);
   width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -72,7 +72,7 @@
   display: flex;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem 0.5rem 2rem;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.875rem;
   align-items: baseline;
 }
@@ -82,7 +82,7 @@
 }
 
 .repo-commit-summary__message-date {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-size: 0.75rem;
   white-space: nowrap;
   flex-shrink: 0;
@@ -91,9 +91,9 @@
 .repo-commit-summary__message-branch {
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: 9999px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-family: monospace;
   white-space: nowrap;
   flex-shrink: 0;
@@ -101,7 +101,7 @@
 
 .repo-commit-summary__message-author {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -122,7 +122,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
@@ -134,5 +134,5 @@
 .repo-commit-summary__message-hash {
   font-family: monospace;
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }

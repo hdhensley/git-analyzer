@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .commits-per-user__summary {
@@ -21,12 +21,12 @@
 .commits-per-user__total {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
 }
 
 .commits-per-user__label {
   font-size: 0.875rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .commits-per-user__chart {
@@ -58,7 +58,7 @@
 
 .commits-per-user__author-email {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,8 +73,8 @@
 
 .commits-per-user__bar {
   height: 24px;
-  background: var(--color-primary, #3b82f6);
-  border-radius: 4px;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
   min-width: 4px;
   transition: width 0.3s ease;
 }

@@ -11,12 +11,12 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .message-summary__author {
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
   overflow: hidden;
   width: 100%;
   min-width: 0;
@@ -29,18 +29,18 @@
   width: 100%;
   padding: 0.75rem;
   border: none;
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
   cursor: pointer;
   text-align: left;
 }
 
 .message-summary__author-header:hover {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .message-summary__expand-icon {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .message-summary__author-info {
@@ -55,13 +55,13 @@
 
 .message-summary__author-stats {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .message-summary__messages {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color);
   width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -70,11 +70,11 @@
 .message-summary__repositories {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color);
 }
 
 .message-summary__repository {
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .message-summary__repository:last-child {
@@ -88,14 +88,14 @@
   width: 100%;
   padding: 0.5rem 0.75rem 0.5rem 2rem;
   border: none;
-  background: white;
+  background: var(--bg-primary);
   cursor: pointer;
   text-align: left;
   transition: background-color 0.15s ease;
 }
 
 .message-summary__repo-header:hover {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
 }
 
 .message-summary__repo-name {
@@ -106,14 +106,14 @@
 
 .message-summary__repo-count {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .message-summary__message {
   display: flex;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem 0.5rem 3.5rem;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.875rem;
   align-items: baseline;
 }
@@ -123,7 +123,7 @@
 }
 
 .message-summary__message-date {
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-size: 0.75rem;
   white-space: nowrap;
   flex-shrink: 0;
@@ -132,9 +132,9 @@
 .message-summary__message-branch {
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: 9999px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   font-family: monospace;
   white-space: nowrap;
   flex-shrink: 0;
@@ -156,7 +156,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
   font-size: 0.75rem;
   cursor: pointer;
 }
@@ -168,5 +168,5 @@
 .message-summary__message-hash {
   font-family: monospace;
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }

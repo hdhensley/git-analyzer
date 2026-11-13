@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .contribution-graph__summary {
@@ -21,12 +21,12 @@
 .contribution-graph__total {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
 }
 
 .contribution-graph__label {
   font-size: 0.875rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .contribution-graph__header {
@@ -43,31 +43,31 @@
 
 .contribution-graph__author-pill {
   padding: 0.2rem 0.6rem;
-  border: 1px solid var(--color-border, #d1d5db);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   background: transparent;
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
 
 .contribution-graph__author-pill:hover {
-  border-color: var(--color-primary, #3b82f6);
-  color: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .contribution-graph__author-pill--active {
-  background: var(--color-primary, #3b82f6);
-  color: white;
-  border-color: var(--color-primary, #3b82f6);
+  background: var(--color-primary);
+  color: var(--on-accent);
+  border-color: var(--color-primary);
 }
 
 .contribution-graph__author-pill--active:hover {
-  background: var(--color-primary-dark, #2563eb);
-  border-color: var(--color-primary-dark, #2563eb);
-  color: white;
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  color: var(--on-accent);
 }
 
 .contribution-graph__grid-wrapper {
@@ -86,7 +86,7 @@
 .contribution-graph__month-labels {
   display: flex;
   font-size: 0.7rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   margin-bottom: 0.25rem;
   padding-left: 36px;
 }
@@ -105,7 +105,7 @@
 
 .contribution-graph__day-label {
   font-size: 0.65rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   height: 13px;
   line-height: 13px;
   text-align: right;
@@ -136,23 +136,23 @@
 }
 
 .contribution-graph__cell--level-0 {
-  background: var(--bg-secondary, #ebedf0);
+  background: var(--bg-secondary);
 }
 
 .contribution-graph__cell--level-1 {
-  background: #9be9a8;
+  background: var(--heat-1);
 }
 
 .contribution-graph__cell--level-2 {
-  background: #40c463;
+  background: var(--heat-2);
 }
 
 .contribution-graph__cell--level-3 {
-  background: #30a14e;
+  background: var(--heat-3);
 }
 
 .contribution-graph__cell--level-4 {
-  background: #216e39;
+  background: var(--heat-4);
 }
 
 .contribution-graph__cell:hover::after {
@@ -161,10 +161,10 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #24292f;
-  color: #fff;
+  background: var(--text-primary);
+  color: var(--on-accent);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.7rem;
   white-space: nowrap;
   z-index: 10;
@@ -177,7 +177,7 @@
   justify-content: flex-end;
   gap: 4px;
   font-size: 0.7rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
   margin-top: 0.25rem;
 }
 

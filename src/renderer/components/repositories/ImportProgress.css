@@ -19,16 +19,16 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  border-radius: 6px;
-  background: var(--bg-secondary, #f9fafb);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
 }
 
 .import-progress__item--complete {
-  background: var(--color-success-bg, #f0fdf4);
+  background: var(--color-success-bg);
 }
 
 .import-progress__item--error {
-  background: var(--color-danger-bg, #fef2f2);
+  background: var(--color-danger-bg);
 }
 
 .import-progress__icon {
@@ -48,31 +48,31 @@
 
 .import-progress__status {
   font-size: 0.75rem;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
 
 .import-progress__item--error .import-progress__status {
-  color: var(--color-danger, #ef4444);
+  color: var(--color-danger);
 }
 
 .import-progress__retry {
   padding: 0.25rem 0.75rem;
   border: none;
-  border-radius: 4px;
-  background: var(--color-danger, #ef4444);
-  color: white;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+  color: var(--on-accent);
   font-size: 0.75rem;
   cursor: pointer;
 }
 
 .import-progress__retry:hover {
-  background: var(--color-danger-dark, #dc2626);
+  background: var(--color-danger-dark);
 }
 
 .import-progress__summary {
   padding: 1rem;
-  background: var(--color-success-bg, #f0fdf4);
-  border-radius: 6px;
+  background: var(--color-success-bg);
+  border-radius: var(--radius);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -82,20 +82,20 @@
 
 .import-progress__summary-text {
   margin: 0;
-  color: var(--color-success, #22c55e);
+  color: var(--color-success);
   font-weight: 500;
 }
 
 .import-progress__summary-errors {
-  color: var(--color-danger, #ef4444);
+  color: var(--color-danger);
 }
 
 .import-progress__continue-btn {
   padding: 0.5rem 1.5rem;
   border: none;
-  border-radius: 6px;
-  background: var(--color-primary, #3b82f6);
-  color: white;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--on-accent);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -103,11 +103,11 @@
 }
 
 .import-progress__continue-btn:hover {
-  background: var(--color-primary-dark, #2563eb);
+  background: var(--color-primary-dark);
 }
 
 .import-progress__loading {
   padding: 2rem;
   text-align: center;
-  color: var(--color-muted, #6b7280);
+  color: var(--color-muted);
 }
