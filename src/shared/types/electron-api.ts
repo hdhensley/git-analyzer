@@ -28,7 +28,10 @@ import type {
   RepoActivity,
   SpaceSummary,
   PipelineAuditResult,
+  RepoReleases,
+  ReleaseQuery,
 } from './index';
+import type { ReleaseBranchMode } from '../releaseBranch';
 
 export interface ElectronAPI {
   auth: {
@@ -89,6 +92,16 @@ export interface ElectronAPI {
     getRepoActivity: (repositoryIds: string[]) => Promise<RepoActivity[]>;
   };
 
+  releases: {
+    query: (query: ReleaseQuery) => Promise<RepoReleases[]>;
+    getBranchMode: () => Promise<ReleaseBranchMode>;
+    /** Changing the mode discards stored releases; call sync afterwards to rebuild them. */
+    setBranchMode: (mode: ReleaseBranchMode) => Promise<void>;
+    /** Re-reads release tags for the given repositories from their source. */
+    sync: (
+      repositoryIds: string[]
+    ) => Promise<{ addedReleases: number; errors: Array<{ repoName: string; error: string }> }>;
+  };
   preferences: {
     get: () => Promise<UserPreferences>;
     save: (prefs: UserPreferences) => Promise<void>;

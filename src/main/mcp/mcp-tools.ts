@@ -1,11 +1,12 @@
 import type { DatabaseService } from '../services/database';
 import type { DateRangePreset } from '../../shared/types';
+import { extractTicketKeys } from '../../shared/ticketKeys';
 
 /** What the tools need from the app. Resolved per request so space switches are honoured. */
 export interface McpContext {
   db: Pick<
     DatabaseService,
-    'getImportedRepositories' | 'getPreferences' | 'getRepoActivity' | 'queryReadOnly'
+    'getImportedRepositories' | 'getPreferences' | 'getRepoActivity' | 'queryReadOnly' | 'getReleases' | 'getReleaseBranchMode'
   >;
   space: { id: string; name: string };
   now?: () => Date;
@@ -31,7 +32,10 @@ repositories(id TEXT PK, name, owner, provider /* github|bitbucket|local */, def
 commits(id INTEGER PK, repository_id -> repositories.id, hash, author_name, author_email,
         commit_date, message, branch)   -- UNIQUE(repository_id, hash)
 
-Only these two tables are reachable through the query tool. Credentials, provider connections
+releases(id INTEGER PK, repository_id -> repositories.id, tag, sha, released_at, date_source /* tag|commit */,
+         previous_tag)   -- tags reachable from the release branch (main by default); UNIQUE(repository_id, tag)
+release_commits(release_id -> releases.id, hash, author_name, author_email, commit_date, message, is_merge /* 0|1 */)
+Only these tables are reachable through the query tool. Credentials, provider connections
 and cached third-party results are intentionally not exposed.`;
 
 const PRESET_DAYS: Record<Exclude<DateRangePreset, 'custom'>, number> = {
@@ -44,6 +48,9 @@ const PRESET_DAYS: Record<Exclude<DateRangePreset, 'custom'>, number> = {
 const DEFAULT_COMMIT_LIMIT = 100;
 const MAX_COMMIT_LIMIT = 500;
 const MAX_MESSAGE_CHARS = 1000;
+const DEFAULT_RELEASE_COMMITS = 50;
+const MAX_RELEASE_COMMITS = 200;
+const DEFAULT_RELEASE_DAYS = 30;
 
 // Tables and SQLite internals the free-form query tool must not touch.
 const BLOCKED_SQL = /providers|space_settings|snyk_cache|sqlite_|pragma|load_extension|attach/i;
@@ -330,6 +337,88 @@ export const MCP_TOOLS: McpTool[] = [
         params,
         5000
       ).rows;
+    },
+  },
+  {
+    name: 'get_releases',
+    description: `Lists what was released per repository: tagged releases (tags reachable from the release branch, main by default; the user can switch to master or main-then-master in the Releases tab) whose date falls in the range, with the commits each one shipped and the ticket keys (e.g. DEV-1234) found in their messages. Release dates come from the tag when it is annotated, otherwise from the tagged commit (dateSource "commit"), which can be earlier than the real release. If since and until are both omitted the app's selected date range is used, or the last ${DEFAULT_RELEASE_DAYS} days when none is set. Repositories with no releases in the range are listed in withoutReleases. Data comes from the last sync, so a repository whose tags were never read shows no releases.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repository_ids: FILTER_PROPERTIES.repository_ids,
+        selected_only: FILTER_PROPERTIES.selected_only,
+        since: FILTER_PROPERTIES.since,
+        until: FILTER_PROPERTIES.until,
+        include_commits: {
+          type: 'boolean',
+          description: 'Include the commit list for each release (default true). Set false for a compact overview.',
+        },
+        hide_merges: { type: 'boolean', description: 'Leave merge commits out of the commit lists and counts.' },
+        max_commits_per_release: { type: 'integer', minimum: 1, maximum: MAX_RELEASE_COMMITS },
+      },
+    },
+    handler: (args, ctx) => {
+      const now = (ctx.now ?? (() => new Date()))();
+      let sinceIso = parseDate(optString(args, 'since'), 'since', false);
+      let untilIso = parseDate(optString(args, 'until'), 'until', true);
+      if (!sinceIso && !untilIso) {
+        const selected = resolveSelection(ctx).dateRange;
+        if (selected) {
+          sinceIso = selected.start;
+          untilIso = selected.end;
+        } else {
+          sinceIso = new Date(now.getTime() - DEFAULT_RELEASE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        }
+      }
+      const start = new Date(sinceIso ?? 0);
+      const end = new Date(untilIso ?? now.toISOString());
+      const includeCommits = args.include_commits === undefined ? true : optBool(args, 'include_commits');
+      const hideMerges = optBool(args, 'hide_merges');
+      const perRelease = optInt(args, 'max_commits_per_release', DEFAULT_RELEASE_COMMITS, MAX_RELEASE_COMMITS);
+
+      let ids = optStringArray(args, 'repository_ids') ?? ctx.db.getImportedRepositories().map((r) => r.id);
+      if (optBool(args, 'selected_only')) {
+        const selected = resolveSelection(ctx).repositoryIds;
+        ids = ids.filter((id) => selected.includes(id));
+      }
+
+      const results = ctx.db.getReleases(ids, start, end);
+      const withReleases = results.filter((repo) => repo.releases.length > 0);
+      return {
+        releaseBranch: ctx.db.getReleaseBranchMode(),
+        range: { start: start.toISOString(), end: end.toISOString() },
+        repositories: withReleases.map((repo) => {
+          const releases = repo.releases.map((release) => {
+            const commits = hideMerges ? release.commits.filter((c) => !c.isMerge) : release.commits;
+            return {
+              tag: release.tag,
+              releasedAt: release.releasedAt.toISOString(),
+              dateSource: release.dateSource,
+              previousTag: release.previousTag ?? null,
+              commitCount: commits.length,
+              tickets: [...new Set(commits.flatMap((c) => extractTicketKeys(c.message)))],
+              ...(includeCommits && {
+                commits: commits.slice(0, perRelease).map((c) => ({
+                  hash: c.hash.slice(0, 10),
+                  author: c.authorName,
+                  date: c.date.toISOString(),
+                  isMerge: c.isMerge,
+                  message: c.message.slice(0, MAX_MESSAGE_CHARS),
+                })),
+                commitsTruncated: commits.length > perRelease,
+              }),
+            };
+          });
+          return {
+            repositoryId: repo.repositoryId,
+            name: repo.repositoryName,
+            releaseCount: releases.length,
+            commitCount: releases.reduce((n, r) => n + r.commitCount, 0),
+            releases,
+          };
+        }),
+        withoutReleases: results.filter((repo) => repo.releases.length === 0).map((repo) => repo.repositoryName),
+      };
     },
   },
   {

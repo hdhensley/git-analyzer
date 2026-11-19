@@ -181,6 +181,12 @@ describe('Dashboard', () => {
           getStats: vi.fn(),
           getRepoActivity: vi.fn(),
         },
+        releases: {
+          query: vi.fn(),
+          getBranchMode: vi.fn(),
+          setBranchMode: vi.fn(),
+          sync: vi.fn(),
+        },
         preferences: {
           get: mockPreferencesGet,
           save: vi.fn(),
@@ -266,6 +272,12 @@ describe('Dashboard', () => {
           query: vi.fn(),
           getStats: vi.fn(),
           getRepoActivity: vi.fn(),
+        },
+        releases: {
+          query: vi.fn(),
+          getBranchMode: vi.fn(),
+          setBranchMode: vi.fn(),
+          sync: vi.fn(),
         },
         preferences: {
           get: vi.fn().mockResolvedValue({

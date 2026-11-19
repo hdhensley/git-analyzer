@@ -4,13 +4,24 @@ import type {
   Repository,
   RepositoryPage,
   CommitData,
+  ReleaseData,
+  ReleaseCommit,
 } from '../../shared/types';
+import {
+  FIRST_RELEASE_COMMIT_CAP,
+  isWithinLookback,
+  orderReleaseTags,
+  type RawReleaseTag,
+} from './releases';
+import { DEFAULT_RELEASE_BRANCH_MODE, releaseBranchCandidates } from '../../shared/releaseBranch';
 
 const PAGE_SIZE = 100;
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 const MAX_CLOUD_COMMITS = 2000;
 const MAX_CLOUD_AGE_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
+const MAX_TAG_PAGES = 3; // 300 tags per repo is far more than a year of releases
+const MAX_RELEASE_COMMITS = 500;
 
 export type FetchProgressCallback = (info: {
   currentPage?: number;
@@ -740,5 +751,335 @@ export class GitService {
     }
 
     return allCommits;
+  }
+
+  /**
+   * Reads a cloud repository's releases: tags reachable from the release
+   * branch, with the commits between each tag and the one before it. Tags
+   * already in `known` (same name and commit) are skipped so repeat syncs stay
+   * cheap. `branches` are tried in order and the first that exists is used.
+   */
+  async fetchReleases(
+    repo: Repository,
+    known: Map<string, string> = new Map(),
+    branches: string[] = releaseBranchCandidates(DEFAULT_RELEASE_BRANCH_MODE),
+    onProgress?: FetchProgressCallback
+  ): Promise<ReleaseData[]> {
+    const provider = repo.provider as SCMProvider;
+    if (provider !== 'github' && provider !== 'bitbucket') {
+      throw new Error('Local repositories should be handled by LocalGitService');
+    }
+    const authHeader = await this.authService.getAuthHeader(provider);
+    if (!authHeader) {
+      throw new Error(`Not authenticated with ${provider}`);
+    }
+
+    const source: ReleaseSource =
+      provider === 'github'
+        ? new GitHubReleaseSource(authHeader, repo, onProgress)
+        : new BitbucketReleaseSource(authHeader, repo, onProgress);
+
+    const branch = await source.resolveBranch(branches);
+    if (!branch) return [];
+
+    const allTags = (await source.listTags()).sort(
+      (a, b) => b.releasedAt.getTime() - a.releasedAt.getTime()
+    );
+    const inWindow = allTags.filter((tag) => isWithinLookback(tag));
+    const isNew = (tag: RawReleaseTag) => known.get(tag.tag) !== tag.sha;
+    if (!inWindow.some(isNew)) return [];
+
+    // Walk newest to oldest keeping tags that are on the release branch. Known tags were
+    // reachable when stored, so only new ones cost an API call. Past the
+    // window, keep going until one reachable tag is found: it bounds the
+    // oldest in-window release.
+    const reachable: RawReleaseTag[] = [];
+    for (const tag of inWindow) {
+      if (!isNew(tag) || (await source.isOnBranch(tag.sha, branch))) reachable.push(tag);
+    }
+    for (const tag of allTags.filter((t) => !isWithinLookback(t)).slice(0, 5)) {
+      if (await source.isOnBranch(tag.sha, branch)) {
+        reachable.push(tag);
+        break;
+      }
+    }
+
+    const releases: ReleaseData[] = [];
+    for (const ordered of orderReleaseTags(reachable)) {
+      if (!isWithinLookback(ordered) || !isNew(ordered)) continue;
+      const commits = await source.listCommits(ordered.sha, ordered.previous?.sha);
+      releases.push({
+        tag: ordered.tag,
+        sha: ordered.sha,
+        releasedAt: ordered.releasedAt,
+        dateSource: ordered.dateSource,
+        previousTag: ordered.previous?.tag,
+        commits,
+      });
+    }
+    return releases;
+  }
+}
+
+interface ReleaseSource {
+  listTags(): Promise<RawReleaseTag[]>;
+  /** The first of `candidates` that exists as a branch, or null. */
+  resolveBranch(candidates: string[]): Promise<string | null>;
+  /** True when the commit is an ancestor of (or equal to) the branch. */
+  isOnBranch(sha: string, branch: string): Promise<boolean>;
+  /** Commits reachable from `sha` but not from `previousSha` (capped). */
+  listCommits(sha: string, previousSha?: string): Promise<ReleaseCommit[]>;
+}
+
+class GitHubReleaseSource implements ReleaseSource {
+  private readonly base: string;
+  private readonly owner: string;
+  private readonly name: string;
+
+  constructor(
+    private readonly authHeader: string,
+    repo: Repository,
+    private readonly onProgress?: FetchProgressCallback
+  ) {
+    this.base = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
+    this.owner = repo.owner;
+    this.name = repo.name;
+  }
+
+  private async get<T>(url: string): Promise<{ status: number; data: T | null }> {
+    const response = await fetchWithRetry(
+      url,
+      { headers: { Authorization: this.authHeader, Accept: 'application/vnd.github.v3+json' } },
+      this.onProgress
+    );
+    if (response.status === 404 || response.status === 409 || response.status === 422) {
+      return { status: response.status, data: null };
+    }
+    if (!response.ok) {
+      throw new Error(`GitHub request failed (${response.status}): ${response.statusText}`);
+    }
+    return { status: response.status, data: (await response.json()) as T };
+  }
+
+  async listTags(): Promise<RawReleaseTag[]> {
+    type TagNode = {
+      name: string;
+      target: {
+        oid: string;
+        committedDate?: string;
+        tagger?: { date?: string };
+        target?: { oid: string; committedDate?: string };
+      } | null;
+    };
+    type GraphQLResponse = {
+      data?: {
+        repository: {
+          refs: { nodes: TagNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+        } | null;
+      };
+      errors?: Array<{ message: string }>;
+    };
+    const query = `query($owner: String!, $name: String!, $cursor: String) {
+      repository(owner: $owner, name: $name) {
+        refs(refPrefix: "refs/tags/", first: 100, after: $cursor,
+             orderBy: { field: TAG_COMMIT_DATE, direction: DESC }) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            name
+            target {
+              oid
+              ... on Commit { committedDate }
+              ... on Tag { tagger { date } target { oid ... on Commit { committedDate } } }
+            }
+          }
+        }
+      }
+    }`;
+
+    const tags: RawReleaseTag[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_TAG_PAGES; page++) {
+      const response = await fetchWithRetry(
+        'https://api.github.com/graphql',
+        {
+          method: 'POST',
+          headers: { Authorization: this.authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, variables: { owner: this.owner, name: this.name, cursor } }),
+        },
+        this.onProgress
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to list tags: ${response.statusText}`);
+      }
+      const body = (await response.json()) as GraphQLResponse;
+      if (body.errors?.length) {
+        throw new Error(`Failed to list tags: ${body.errors[0].message}`);
+      }
+      const refs = body.data?.repository?.refs;
+      if (!refs) break;
+      for (const node of refs.nodes) {
+        const target = node.target;
+        if (!target) continue;
+        const annotated = target.tagger?.date;
+        const sha = target.target?.oid ?? target.oid;
+        const committed = target.committedDate ?? target.target?.committedDate;
+        const dateStr = annotated || committed;
+        const releasedAt = dateStr ? new Date(dateStr) : null;
+        if (!releasedAt || isNaN(releasedAt.getTime())) continue;
+        tags.push({ tag: node.name, sha, releasedAt, dateSource: annotated ? 'tag' : 'commit' });
+      }
+      if (!refs.pageInfo.hasNextPage) break;
+      cursor = refs.pageInfo.endCursor;
+    }
+    return tags;
+  }
+
+  async resolveBranch(candidates: string[]): Promise<string | null> {
+    for (const name of candidates) {
+      const { data } = await this.get<unknown>(`${this.base}/branches/${encodeURIComponent(name)}`);
+      if (data) return name;
+    }
+    return null;
+  }
+
+  async isOnBranch(sha: string, branch: string): Promise<boolean> {
+    const { data } = await this.get<{ status: string }>(
+      `${this.base}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(branch)}?per_page=1`
+    );
+    return data?.status === 'ahead' || data?.status === 'identical';
+  }
+
+  async listCommits(sha: string, previousSha?: string): Promise<ReleaseCommit[]> {
+    type GitHubCommit = {
+      sha: string;
+      commit: { author: { name: string; email: string; date: string }; message: string };
+      parents: unknown[];
+    };
+    const commits: ReleaseCommit[] = [];
+    const cap = previousSha ? MAX_RELEASE_COMMITS : FIRST_RELEASE_COMMIT_CAP;
+    for (let page = 1; commits.length < cap; page++) {
+      const url = previousSha
+        ? `${this.base}/compare/${encodeURIComponent(previousSha)}...${encodeURIComponent(sha)}?per_page=100&page=${page}`
+        : `${this.base}/commits?sha=${encodeURIComponent(sha)}&per_page=100&page=${page}`;
+      const { data } = await this.get<{ commits: GitHubCommit[] } | GitHubCommit[]>(url);
+      if (!data) break;
+      const items = Array.isArray(data) ? data : data.commits;
+      for (const item of items) {
+        commits.push({
+          hash: item.sha,
+          authorName: item.commit.author.name,
+          authorEmail: item.commit.author.email,
+          date: new Date(item.commit.author.date),
+          message: item.commit.message,
+          isMerge: item.parents.length > 1,
+        });
+      }
+      if (items.length < 100) break;
+    }
+    return commits.slice(0, cap);
+  }
+}
+
+class BitbucketReleaseSource implements ReleaseSource {
+  private readonly base: string;
+
+  constructor(
+    private readonly authHeader: string,
+    repo: Repository,
+    private readonly onProgress?: FetchProgressCallback
+  ) {
+    this.base = `https://api.bitbucket.org/2.0/repositories/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
+  }
+
+  private async get<T>(url: string): Promise<T | null> {
+    const response = await fetchWithRetry(
+      url,
+      { headers: { Authorization: this.authHeader, Accept: 'application/json' } },
+      this.onProgress
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`Bitbucket request failed (${response.status}): ${response.statusText}`);
+    }
+    return (await response.json()) as T;
+  }
+
+  async listTags(): Promise<RawReleaseTag[]> {
+    type BitbucketTag = {
+      name: string;
+      date?: string | null; // tagger date, only for annotated tags
+      target: { hash: string; date?: string };
+    };
+    type Page = { values: BitbucketTag[]; next?: string };
+    const tags: RawReleaseTag[] = [];
+    let url: string | null = `${this.base}/refs/tags?sort=-target.date&pagelen=100`;
+    for (let page = 0; url && page < MAX_TAG_PAGES; page++) {
+      const data: Page | null = await this.get<Page>(url);
+      if (!data) break;
+      for (const value of data.values) {
+        const dateStr = value.date || value.target.date;
+        const releasedAt = dateStr ? new Date(dateStr) : null;
+        if (!releasedAt || isNaN(releasedAt.getTime())) continue;
+        tags.push({
+          tag: value.name,
+          sha: value.target.hash,
+          releasedAt,
+          dateSource: value.date ? 'tag' : 'commit',
+        });
+      }
+      url = data.next ?? null;
+    }
+    return tags;
+  }
+
+  async resolveBranch(candidates: string[]): Promise<string | null> {
+    for (const name of candidates) {
+      const data = await this.get<unknown>(`${this.base}/refs/branches/${encodeURIComponent(name)}`);
+      if (data) return name;
+    }
+    return null;
+  }
+
+  async isOnBranch(sha: string, branch: string): Promise<boolean> {
+    type Page = { values: unknown[] };
+    const data = await this.get<Page>(
+      `${this.base}/commits?include=${encodeURIComponent(sha)}&exclude=${encodeURIComponent(branch)}&pagelen=1`
+    );
+    // An empty result means every commit of the tag is already on the branch.
+    return data !== null && data.values.length === 0;
+  }
+
+  async listCommits(sha: string, previousSha?: string): Promise<ReleaseCommit[]> {
+    type BitbucketCommit = {
+      hash: string;
+      author: { user?: { display_name: string; email?: string }; raw?: string };
+      date: string;
+      message: string;
+      parents: unknown[];
+    };
+    type Page = { values: BitbucketCommit[]; next?: string };
+    const cap = previousSha ? MAX_RELEASE_COMMITS : FIRST_RELEASE_COMMIT_CAP;
+    const commits: ReleaseCommit[] = [];
+    let url: string | null =
+      `${this.base}/commits?include=${encodeURIComponent(sha)}` +
+      (previousSha ? `&exclude=${encodeURIComponent(previousSha)}` : '') +
+      '&pagelen=100';
+    while (url && commits.length < cap) {
+      const data: Page | null = await this.get<Page>(url);
+      if (!data) break;
+      for (const item of data.values) {
+        commits.push({
+          hash: item.hash,
+          authorName:
+            item.author.user?.display_name || item.author.raw?.split('<')[0].trim() || 'Unknown',
+          authorEmail: item.author.user?.email || item.author.raw?.match(/<(.+)>/)?.[1] || '',
+          date: new Date(item.date),
+          message: item.message,
+          isMerge: item.parents.length > 1,
+        });
+      }
+      url = data.next ?? null;
+    }
+    return commits.slice(0, cap);
   }
 }

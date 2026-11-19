@@ -5,6 +5,7 @@ import { AuthStatus, SnykConnection } from '../auth';
 import { SpaceSwitcher, SpacesManager } from '../spaces';
 import { RepositoryList, ImportProgress, LocalRepositoryBrowser, ScmLocalCompare } from '../repositories';
 import { DateRangeFilter, RepositoryFilter, calculateDateRange } from '../filters';
+import { ReleaseNotes } from '../releases/ReleaseNotes';
 import { ChartWidget, WidgetRegistry, CommitsPerUserWidgetDefinition, MessageSummaryWidgetDefinition, RepositoryCommitSummaryWidgetDefinition, ContributionGraphWidgetDefinition, CommitFrequencyWidgetDefinition, DayHourHeatmapWidgetDefinition, StreakWidgetDefinition, BusFactorWidgetDefinition, CommitMessageAnalysisWidgetDefinition, RepoHealthWidgetDefinition, AuthorRepoMatrixWidgetDefinition } from '../widgets';
 import type { Repository, Commit, DateRange, DateRangePreset, UserPreferences } from '../../../shared/types';
 import type { AuthorGrouping } from '../widgets';
@@ -35,7 +36,7 @@ type View = 'connect' | 'import' | 'importing' | 'analytics' | 'spaces';
 //  - trends:   activity over a chosen date range
 //  - snapshot: current state of every selected repo, no date range
 //  - insights: range-aware analysis (bus factor, commit message quality)
-type AnalyticsSection = 'trends' | 'snapshot' | 'insights';
+type AnalyticsSection = 'trends' | 'snapshot' | 'insights' | 'releases';
 type TrendsView = 'overview' | 'by-user' | 'commit-messages';
 type ImportSource = null | 'local' | 'github' | 'bitbucket' | 'compare';
 
@@ -44,6 +45,7 @@ const SECTION_LABELS: Record<AnalyticsSection, string> = {
   trends: 'Trends',
   snapshot: 'Snapshot',
   insights: 'Insights',
+  releases: 'Releases',
 };
 const ANALYTICS_SECTION_KEY = 'analyticsSection';
 const TRENDS_VIEW_KEY = 'trendsView';
@@ -51,6 +53,7 @@ const SECTION_HINTS: Record<AnalyticsSection, string> = {
   trends: 'How activity changes over the selected date range',
   snapshot: 'Where every selected repository stands right now (ignores the date range)',
   insights: 'Bus factor and commit quality for the selected date range',
+  releases: 'Tagged releases on main for the selected repositories and date range',
 };
 const TRENDS_VIEWS: Array<{ id: TrendsView; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -776,7 +779,7 @@ export function Dashboard() {
               )}
 
               <div className="dashboard__widgets">
-                {loading && section !== 'snapshot' && <div className="dashboard__loading">Loading commits...</div>}
+                {loading && section !== 'snapshot' && section !== 'releases' && <div className="dashboard__loading">Loading commits...</div>}
                 
                 {!loading && selectedRepoIds.length === 0 && (
                   <div className="dashboard__empty">
@@ -784,6 +787,9 @@ export function Dashboard() {
                   </div>
                 )}
 
+                {selectedRepoIds.length > 0 && section === 'releases' && (
+                  <ReleaseNotes repositories={selectedRepositories} dateRange={dateRange} />
+                )}
                 {!loading && selectedRepoIds.length > 0 && section === 'trends' && trendsView === 'overview' && (
                   <>
                     <ChartWidget

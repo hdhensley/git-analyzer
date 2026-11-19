@@ -4,6 +4,7 @@ import type { SpaceManager } from './spaces/space-manager';
 import type { SpaceContext } from './spaces/space-context';
 import type { FetchProgressCallback } from './services/git';
 import { auditPipelines, listAwsProfiles } from './services/pipeline-audit';
+import { isReleaseBranchMode, releaseBranchCandidates } from '../shared/releaseBranch';
 import type {
   SCMProvider,
   Repository,
@@ -16,6 +17,7 @@ import type {
   LocalRepositoryInfo,
   ScmProjectRepository,
   CloneProgress,
+  ReleaseQuery,
 } from '../shared/types';
 
 /**
@@ -59,6 +61,27 @@ export function registerIpcHandlers(spaces: SpaceManager, onSpacesChanged: () =>
   const snykService = fromActiveSpace(spaces, 'snyk');
   const gitService = fromActiveSpace(spaces, 'git');
   const db = fromActiveSpace(spaces, 'db');
+
+
+  // Reads a repository's releases (tags on main) into the database. Only tags
+  // not yet stored are fetched. Returns how many releases were added.
+  const syncRepoReleases = async (
+    repo: Repository,
+    onFetchProgress?: FetchProgressCallback
+  ): Promise<number> => {
+    const known = db.getStoredReleaseTags(repo.id);
+    const branches = releaseBranchCandidates(db.getReleaseBranchMode());
+    const releases =
+      repo.provider === 'local'
+        ? repo.localPath
+          ? await fromActiveSpace(spaces, 'localGit').fetchReleases(repo.localPath, known, branches)
+          : []
+        : await gitService.fetchReleases(repo, known, branches, onFetchProgress);
+    if (releases.length > 0) {
+      db.saveReleases(repo.id, releases);
+    }
+    return releases.length;
+  };
 
   // Auth handlers
   handleBusy('auth:authenticate', 'sign-in', async (_event, provider: SCMProvider) => {
@@ -247,6 +270,15 @@ export function registerIpcHandlers(spaces: SpaceManager, onSpacesChanged: () =>
             db.saveCommits(repo.id, commits);
             newCommits = commits.length;
           }
+          reportStep('Reading release tags');
+          try {
+            await syncRepoReleases(repo);
+          } catch (releaseErr) {
+            result.errors.push({
+              repoName: repo.name,
+              error: `Releases: ${releaseErr instanceof Error ? releaseErr.message : 'Unknown error'}`,
+            });
+          }
         } else {
           // Cloud repo (github/bitbucket)
           try {
@@ -270,6 +302,15 @@ export function registerIpcHandlers(spaces: SpaceManager, onSpacesChanged: () =>
               reportStep(`Saving ${n} commit${n !== 1 ? 's' : ''}`);
               db.saveCommits(repo.id, fetchResult.commits);
               newCommits = fetchResult.commits.length;
+            }
+            reportStep('Checking release tags');
+            try {
+              await syncRepoReleases(repo, onFetchProgress);
+            } catch (releaseErr) {
+              result.errors.push({
+                repoName: repo.name,
+                error: `Releases: ${releaseErr instanceof Error ? releaseErr.message : 'Unknown error'}`,
+              });
             }
           } catch (authErr) {
             // If not authenticated, skip rather than fail the whole sync
@@ -303,6 +344,35 @@ export function registerIpcHandlers(spaces: SpaceManager, onSpacesChanged: () =>
     }
 
     return result;
+  });
+
+  // Release handlers
+  ipcMain.handle('releases:getBranchMode', async () => db.getReleaseBranchMode());
+
+  ipcMain.handle('releases:setBranchMode', async (_event, mode: unknown) => {
+    if (!isReleaseBranchMode(mode)) {
+      throw new Error('Release branch must be main, master or auto');
+    }
+    db.setReleaseBranchMode(mode);
+  });
+
+  ipcMain.handle('releases:query', async (_event, query: ReleaseQuery) => {
+    return db.getReleases(query.repositoryIds, new Date(query.start), new Date(query.end));
+  });
+
+  handleBusy('releases:sync', 'a release refresh', async (_event, repoIds: string[]) => {
+    const wanted = new Set(repoIds);
+    const repos = db.getImportedRepositories().filter((r) => wanted.has(r.id));
+    let added = 0;
+    const errors: Array<{ repoName: string; error: string }> = [];
+    for (const repo of repos) {
+      try {
+        added += await syncRepoReleases(repo);
+      } catch (error) {
+        errors.push({ repoName: repo.name, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+    return { addedReleases: added, errors };
   });
 
   // Commit handlers

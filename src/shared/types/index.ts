@@ -437,3 +437,39 @@ export interface LocalRepoError {
   details?: Record<string, unknown>;
   retryable: boolean;
 }
+
+// Release notes types. A release is a tag reachable from `main`; its commits
+// are those between the previous release tag and this one.
+export type ReleaseDateSource = 'tag' | 'commit'; // tagger date vs. tagged commit's date
+
+export interface ReleaseCommit {
+  hash: string;
+  authorName: string;
+  authorEmail: string;
+  date: Date;
+  message: string;
+  isMerge: boolean;
+}
+
+export interface ReleaseData {
+  tag: string;
+  sha: string;
+  releasedAt: Date;
+  dateSource: ReleaseDateSource;
+  previousTag?: string;
+  commits: ReleaseCommit[];
+}
+
+export interface RepoReleases {
+  repositoryId: string;
+  repositoryName: string;
+  repositoryParentFolder?: string;
+  provider: RepositorySource;
+  releases: ReleaseData[];
+}
+
+export interface ReleaseQuery {
+  repositoryIds: string[];
+  start: Date;
+  end: Date;
+}

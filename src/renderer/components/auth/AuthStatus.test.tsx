@@ -108,6 +108,12 @@ describe('AuthStatus', () => {
           getStats: vi.fn(),
           getRepoActivity: vi.fn(),
         },
+        releases: {
+          query: vi.fn(),
+          getBranchMode: vi.fn(),
+          setBranchMode: vi.fn(),
+          sync: vi.fn(),
+        },
         preferences: {
           get: vi.fn(),
           save: vi.fn(),
@@ -196,6 +202,12 @@ describe('AuthStatus', () => {
           query: vi.fn(),
           getStats: vi.fn(),
           getRepoActivity: vi.fn(),
+        },
+        releases: {
+          query: vi.fn(),
+          getBranchMode: vi.fn(),
+          setBranchMode: vi.fn(),
+          sync: vi.fn(),
         },
         preferences: {
           get: vi.fn(),

@@ -11,7 +11,18 @@ import type {
   UserPreferences,
   DateRangePreset,
   RepositorySource,
+  ReleaseData,
+  ReleaseCommit,
+  ReleaseDateSource,
+  RepoReleases,
 } from '../../shared/types';
+import {
+  DEFAULT_RELEASE_BRANCH_MODE,
+  isReleaseBranchMode,
+  type ReleaseBranchMode,
+} from '../../shared/releaseBranch';
+
+const RELEASE_BRANCH_SETTING_KEY = 'releaseBranch';
 
 export class DatabaseService {
   private db: Database.Database;
@@ -97,6 +108,31 @@ export class DatabaseService {
         payload TEXT NOT NULL,
         fetched_at DATETIME NOT NULL
       );
+
+      -- Releases: tags reachable from main, and the commits each one shipped.
+      CREATE TABLE IF NOT EXISTS releases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+        tag TEXT NOT NULL,
+        sha TEXT NOT NULL,
+        released_at DATETIME NOT NULL,
+        date_source TEXT NOT NULL,
+        previous_tag TEXT,
+        UNIQUE(repository_id, tag)
+      );
+
+      CREATE TABLE IF NOT EXISTS release_commits (
+        release_id INTEGER NOT NULL REFERENCES releases(id) ON DELETE CASCADE,
+        hash TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_email TEXT NOT NULL,
+        commit_date DATETIME NOT NULL,
+        message TEXT NOT NULL,
+        is_merge INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (release_id, hash)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_releases_repo_date ON releases(repository_id, released_at);
     `);
 
     // Run migrations for existing databases
@@ -297,6 +333,153 @@ export class DatabaseService {
       ...(row.local_path && { localPath: row.local_path }),
       ...(row.is_available !== null && { isAvailable: row.is_available === 1 }),
     }));
+  }
+
+  // Release operations
+
+  getReleaseBranchMode(): ReleaseBranchMode {
+    const stored = this.getSetting(RELEASE_BRANCH_SETTING_KEY);
+    return isReleaseBranchMode(stored) ? stored : DEFAULT_RELEASE_BRANCH_MODE;
+  }
+
+  /**
+   * Sets which branch counts as released. Stored releases were computed for
+   * the previous branch, so a change discards them; the next sync rebuilds.
+   */
+  setReleaseBranchMode(mode: ReleaseBranchMode): void {
+    if (mode === this.getReleaseBranchMode()) return;
+    this.setSetting(RELEASE_BRANCH_SETTING_KEY, mode);
+    this.db.exec('DELETE FROM releases');
+  }
+
+  /** Tag name to commit sha for every release stored for a repository. */
+  getStoredReleaseTags(repoId: string): Map<string, string> {
+    const rows = this.db
+      .prepare('SELECT tag, sha FROM releases WHERE repository_id = ?')
+      .all(repoId) as Array<{ tag: string; sha: string }>;
+    return new Map(rows.map((row) => [row.tag, row.sha]));
+  }
+
+  /** Inserts or replaces releases (and their commits) for a repository. */
+  saveReleases(repoId: string, releases: ReleaseData[]): void {
+    const deleteRelease = this.db.prepare('DELETE FROM releases WHERE repository_id = ? AND tag = ?');
+    const insertRelease = this.db.prepare(`
+      INSERT INTO releases (repository_id, tag, sha, released_at, date_source, previous_tag)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const insertCommit = this.db.prepare(`
+      INSERT OR IGNORE INTO release_commits (release_id, hash, author_name, author_email, commit_date, message, is_merge)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const saveAll = this.db.transaction((items: ReleaseData[]) => {
+      for (const release of items) {
+        deleteRelease.run(repoId, release.tag);
+        const { lastInsertRowid } = insertRelease.run(
+          repoId,
+          release.tag,
+          release.sha,
+          release.releasedAt.toISOString(),
+          release.dateSource,
+          release.previousTag ?? null
+        );
+        for (const commit of release.commits) {
+          insertCommit.run(
+            lastInsertRowid,
+            commit.hash,
+            commit.authorName,
+            commit.authorEmail,
+            commit.date.toISOString(),
+            commit.message,
+            commit.isMerge ? 1 : 0
+          );
+        }
+      }
+    });
+    saveAll(releases);
+  }
+
+  /**
+   * Releases whose date falls in [start, end], grouped by repository, newest
+   * first. Every requested repository is returned, with an empty list when
+   * nothing shipped in the range.
+   */
+  getReleases(repositoryIds: string[], start: Date, end: Date): RepoReleases[] {
+    if (repositoryIds.length === 0) return [];
+    const placeholders = repositoryIds.map(() => '?').join(',');
+    const repos = this.db
+      .prepare(`SELECT id, name, provider, parent_folder FROM repositories WHERE id IN (${placeholders})`)
+      .all(...repositoryIds) as Array<{
+      id: string;
+      name: string;
+      provider: string;
+      parent_folder: string | null;
+    }>;
+    const releaseRows = this.db
+      .prepare(
+        `SELECT id, repository_id, tag, sha, released_at, date_source, previous_tag
+         FROM releases
+         WHERE repository_id IN (${placeholders}) AND released_at >= ? AND released_at <= ?
+         ORDER BY released_at DESC`
+      )
+      .all(...repositoryIds, start.toISOString(), end.toISOString()) as Array<{
+      id: number;
+      repository_id: string;
+      tag: string;
+      sha: string;
+      released_at: string;
+      date_source: string;
+      previous_tag: string | null;
+    }>;
+
+    const commitsByRelease = new Map<number, ReleaseCommit[]>();
+    const commitStmt = this.db.prepare(
+      `SELECT hash, author_name, author_email, commit_date, message, is_merge
+       FROM release_commits WHERE release_id = ? ORDER BY commit_date DESC`
+    );
+    for (const row of releaseRows) {
+      const commits = (
+        commitStmt.all(row.id) as Array<{
+          hash: string;
+          author_name: string;
+          author_email: string;
+          commit_date: string;
+          message: string;
+          is_merge: number;
+        }>
+      ).map((c) => ({
+        hash: c.hash,
+        authorName: c.author_name,
+        authorEmail: c.author_email,
+        date: new Date(c.commit_date),
+        message: c.message,
+        isMerge: c.is_merge === 1,
+      }));
+      commitsByRelease.set(row.id, commits);
+    }
+
+    const byRepo = new Map<string, ReleaseData[]>();
+    for (const row of releaseRows) {
+      const list = byRepo.get(row.repository_id) ?? [];
+      list.push({
+        tag: row.tag,
+        sha: row.sha,
+        releasedAt: new Date(row.released_at),
+        dateSource: row.date_source as ReleaseDateSource,
+        ...(row.previous_tag && { previousTag: row.previous_tag }),
+        commits: commitsByRelease.get(row.id) ?? [],
+      });
+      byRepo.set(row.repository_id, list);
+    }
+
+    return repos
+      .map((repo) => ({
+        repositoryId: repo.id,
+        repositoryName: repo.name,
+        ...(repo.parent_folder && { repositoryParentFolder: repo.parent_folder }),
+        provider: repo.provider as RepositorySource,
+        releases: byRepo.get(repo.id) ?? [],
+      }))
+      .sort((a, b) => a.repositoryName.localeCompare(b.repositoryName));
   }
 
   // Commit operations

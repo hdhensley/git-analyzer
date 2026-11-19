@@ -61,6 +61,13 @@ const electronAPI: ElectronAPI = {
     getRepoActivity: (repositoryIds) => ipcRenderer.invoke('commits:getRepoActivity', repositoryIds),
   },
 
+  releases: {
+    query: (query) => ipcRenderer.invoke('releases:query', query),
+    getBranchMode: () => ipcRenderer.invoke('releases:getBranchMode'),
+    setBranchMode: (mode) => ipcRenderer.invoke('releases:setBranchMode', mode),
+    sync: (repositoryIds) => ipcRenderer.invoke('releases:sync', repositoryIds),
+  },
+
   preferences: {
     get: () => ipcRenderer.invoke('preferences:get'),
     save: (prefs) => ipcRenderer.invoke('preferences:save', prefs),

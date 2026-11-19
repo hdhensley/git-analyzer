@@ -273,3 +273,88 @@ describe('DatabaseService - Local Repository Support', () => {
     });
   });
 });
+
+describe('DatabaseService - Releases', () => {
+  let db: DatabaseService;
+  let tempDir: string;
+
+  const repo = {
+    id: 'bitbucket-1',
+    name: 'billing',
+    owner: 'team',
+    provider: 'bitbucket' as const,
+    defaultBranch: 'main',
+    url: 'https://bitbucket.org/team/billing',
+  };
+  const release = (tag: string, sha: string, iso: string, messages: string[]) => ({
+    tag,
+    sha,
+    releasedAt: new Date(iso),
+    dateSource: 'tag' as const,
+    commits: messages.map((message, i) => ({
+      hash: `${sha}-${i}`,
+      authorName: 'Ann',
+      authorEmail: 'ann@example.com',
+      date: new Date(iso),
+      message,
+      isMerge: false,
+    })),
+  });
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'db-releases-'));
+    db = new DatabaseService(path.join(tempDir, 'test.db'));
+    db.saveRepository(repo);
+  });
+
+  afterEach(async () => {
+    db.close();
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('returns releases in the range, newest first, with their commits', () => {
+    db.saveReleases(repo.id, [
+      release('v1.0.0', 'a', '2025-01-10T00:00:00Z', ['DEV-1 one']),
+      release('v1.1.0', 'b', '2025-02-10T00:00:00Z', ['DEV-2 two', 'DEV-3 three']),
+      release('v1.2.0', 'c', '2025-03-10T00:00:00Z', ['DEV-4 four']),
+    ]);
+
+    const [result] = db.getReleases([repo.id], new Date('2025-02-01T00:00:00Z'), new Date('2025-03-31T00:00:00Z'));
+    expect(result.repositoryName).toBe('billing');
+    expect(result.releases.map((r) => r.tag)).toEqual(['v1.2.0', 'v1.1.0']);
+    expect(result.releases[1].commits).toHaveLength(2);
+  });
+
+  it('includes repositories with no releases in the range', () => {
+    const [result] = db.getReleases([repo.id], new Date('2025-01-01T00:00:00Z'), new Date('2025-12-31T00:00:00Z'));
+    expect(result.releases).toEqual([]);
+  });
+
+  it('replaces a release saved again and reports stored tags', () => {
+    db.saveReleases(repo.id, [release('v1.0.0', 'a', '2025-01-10T00:00:00Z', ['old'])]);
+    db.saveReleases(repo.id, [release('v1.0.0', 'a2', '2025-01-10T00:00:00Z', ['new'])]);
+
+    expect(db.getStoredReleaseTags(repo.id)).toEqual(new Map([['v1.0.0', 'a2']]));
+    const [result] = db.getReleases([repo.id], new Date('2025-01-01T00:00:00Z'), new Date('2025-12-31T00:00:00Z'));
+    expect(result.releases).toHaveLength(1);
+    expect(result.releases[0].commits.map((c) => c.message)).toEqual(['new']);
+  });
+
+  it('removes releases when the repository is deleted', () => {
+    db.saveReleases(repo.id, [release('v1.0.0', 'a', '2025-01-10T00:00:00Z', ['one'])]);
+    db.deleteRepository(repo.id);
+    expect(db.getStoredReleaseTags(repo.id).size).toBe(0);
+  });
+
+  it('defaults the release branch to main and discards releases when it changes', () => {
+    expect(db.getReleaseBranchMode()).toBe('main');
+    db.saveReleases(repo.id, [release('v1.0.0', 'a', '2025-01-10T00:00:00Z', ['one'])]);
+
+    db.setReleaseBranchMode('main'); // unchanged: keeps releases
+    expect(db.getStoredReleaseTags(repo.id).size).toBe(1);
+
+    db.setReleaseBranchMode('auto');
+    expect(db.getReleaseBranchMode()).toBe('auto');
+    expect(db.getStoredReleaseTags(repo.id).size).toBe(0);
+  });
+});

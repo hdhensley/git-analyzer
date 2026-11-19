@@ -124,7 +124,7 @@ describe('McpHttpServer', () => {
         result: { tools: { name: string }[] };
       };
       expect(tools.result.tools.map((t) => t.name)).toEqual(
-        expect.arrayContaining(['get_selection', 'get_commits', 'query'])
+        expect.arrayContaining(['get_selection', 'get_commits', 'get_releases', 'query'])
       );
       const res = (await (
         await post({ jsonrpc: '2.0', id: 2, method: 'resources/read', params: { uri: 'gitbrowser://schema' } })
@@ -151,6 +151,61 @@ describe('McpHttpServer', () => {
       expect(value.repositories).toEqual([{ id: 'r1', name: 'alpha' }]);
       expect(value.dateRange.preset).toBe('last30days');
       expect(new Date(value.dateRange.end).getTime()).toBeGreaterThan(new Date(value.dateRange.start).getTime());
+    });
+
+    describe('get_releases', () => {
+      const commit = (hash: string, message: string, isMerge = false) => ({
+        hash,
+        authorName: 'Ann',
+        authorEmail: 'ann@x.com',
+        date: new Date('2025-02-01T00:00:00Z'),
+        message,
+        isMerge,
+      });
+
+      beforeEach(() => {
+        db.saveReleases('r1', [
+          {
+            tag: 'v1.0.0',
+            sha: 's1',
+            releasedAt: new Date('2025-01-05T00:00:00Z'),
+            dateSource: 'tag',
+            commits: [commit('aaaaaaaaaaaa', 'DEV-1 first')],
+          },
+          {
+            tag: 'v1.1.0',
+            sha: 's2',
+            releasedAt: new Date('2025-02-05T00:00:00Z'),
+            dateSource: 'commit',
+            previousTag: 'v1.0.0',
+            commits: [commit('bbbbbbbbbbbb', 'DEV-2 and DEV-3 second'), commit('cccccccccccc', 'Merge pull request', true)],
+          },
+        ]);
+      });
+
+      it('defaults to the selected date range and lists repositories without releases', async () => {
+        const { value } = await call('get_releases');
+        // last30days from 2025-02-10: only v1.1.0 falls inside.
+        expect(value.repositories).toHaveLength(1);
+        expect(value.repositories[0].releases.map((r: { tag: string }) => r.tag)).toEqual(['v1.1.0']);
+        expect(value.repositories[0].releases[0].tickets).toEqual(['DEV-2', 'DEV-3']);
+        expect(value.withoutReleases).toEqual(['beta']);
+      });
+
+      it('honours explicit dates, hide_merges and include_commits', async () => {
+        const all = await call('get_releases', { since: '2025-01-01', until: '2025-03-01', hide_merges: true });
+        expect(all.value.repositories[0].releaseCount).toBe(2);
+        expect(all.value.repositories[0].commitCount).toBe(2);
+        const compact = await call('get_releases', { since: '2025-01-01', include_commits: false });
+        expect(compact.value.repositories[0].releases[0]).not.toHaveProperty('commits');
+      });
+
+      it('limits to the selection', async () => {
+        db.savePreferences({ selectedRepositoryIds: ['r2'] });
+        const { value } = await call('get_releases', { selected_only: true, since: '2025-01-01' });
+        expect(value.repositories).toEqual([]);
+        expect(value.withoutReleases).toEqual(['beta']);
+      });
     });
 
     it('filters commits by repository, date, author and selection', async () => {

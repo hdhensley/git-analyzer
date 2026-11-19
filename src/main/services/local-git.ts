@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { dialog } from 'electron';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { access, constants, readdir, stat } from 'fs/promises';
 import path from 'path';
@@ -14,9 +14,21 @@ import type {
   ScmLocalComparison,
   ScmLocalComparisonEntry,
   ScmLocalOnlyEntry,
+  ReleaseData,
 } from '../../shared/types';
+import {
+  FIRST_RELEASE_COMMIT_CAP,
+  GIT_FIELD_SEP,
+  RELEASE_COMMIT_FORMAT,
+  isWithinLookback,
+  orderReleaseTags,
+  parseReleaseCommits,
+  type RawReleaseTag,
+} from './releases';
+import { DEFAULT_RELEASE_BRANCH_MODE, releaseBranchCandidates } from '../../shared/releaseBranch';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Removes embedded credentials from any string that may contain an
@@ -630,5 +642,103 @@ export class LocalGitService {
       }
       throw new Error(`Failed to fetch commits: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Picks the ref that represents the release branch: the first candidate
+   * that exists, using the remote-tracking branch when it is ahead of (or
+   * equal to) the local one. Returns null when no candidate exists.
+   */
+  private async resolveReleaseRef(repoPath: string, candidates: string[]): Promise<string | null> {
+    for (const name of candidates) {
+      const ref = await this.resolveReleaseRefFor(repoPath, name);
+      if (ref) return ref;
+    }
+    return null;
+  }
+
+  private async resolveReleaseRefFor(repoPath: string, branch: string): Promise<string | null> {
+    const exists = async (ref: string): Promise<boolean> => {
+      try {
+        await execFileAsync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { cwd: repoPath });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const local = `refs/heads/${branch}`;
+    const remote = `refs/remotes/origin/${branch}`;
+    const [hasLocal, hasRemote] = await Promise.all([exists(local), exists(remote)]);
+    if (hasLocal && hasRemote) {
+      try {
+        await execFileAsync('git', ['merge-base', '--is-ancestor', local, remote], { cwd: repoPath });
+        return remote;
+      } catch {
+        return local;
+      }
+    }
+    if (hasRemote) return remote;
+    if (hasLocal) return local;
+    return null;
+  }
+
+  /**
+   * Reads the releases of a local repository: tags reachable from the release
+   * branch, with the commits between each tag and the one before it. Tags
+   * already in `known` (same name and commit) are skipped so repeat syncs stay
+   * cheap. Returns an empty list when none of the `branches` exists.
+   */
+  async fetchReleases(
+    repoPath: string,
+    known: Map<string, string> = new Map(),
+    branches: string[] = releaseBranchCandidates(DEFAULT_RELEASE_BRANCH_MODE)
+  ): Promise<ReleaseData[]> {
+    const mainRef = await this.resolveReleaseRef(repoPath, branches);
+    if (!mainRef) return [];
+
+    const format = [
+      '%(refname:short)',
+      '%(objectname)',
+      '%(*objectname)',
+      '%(creatordate:iso-strict)',
+      '%(taggerdate)',
+    ].join(GIT_FIELD_SEP);
+    const { stdout: tagOutput } = await execFileAsync(
+      'git',
+      ['for-each-ref', `--merged=${mainRef}`, `--format=${format}`, 'refs/tags'],
+      { cwd: repoPath, maxBuffer: 10 * 1024 * 1024 }
+    );
+
+    const rawTags: RawReleaseTag[] = [];
+    for (const line of tagOutput.split('\n')) {
+      if (!line.trim()) continue;
+      const [tag, objectName, peeledName, createdAt, taggerDate] = line.split(GIT_FIELD_SEP);
+      const releasedAt = new Date(createdAt);
+      const sha = peeledName || objectName;
+      if (!tag || !sha || isNaN(releasedAt.getTime())) continue;
+      rawTags.push({ tag, sha, releasedAt, dateSource: taggerDate?.trim() ? 'tag' : 'commit' });
+    }
+
+    const releases: ReleaseData[] = [];
+    for (const ordered of orderReleaseTags(rawTags)) {
+      if (!isWithinLookback(ordered) || known.get(ordered.tag) === ordered.sha) continue;
+      const range = ordered.previous ? `${ordered.previous.sha}..${ordered.sha}` : ordered.sha;
+      const args = ['log', `--format=${RELEASE_COMMIT_FORMAT}`];
+      if (!ordered.previous) args.push('-n', String(FIRST_RELEASE_COMMIT_CAP));
+      args.push(range);
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      releases.push({
+        tag: ordered.tag,
+        sha: ordered.sha,
+        releasedAt: ordered.releasedAt,
+        dateSource: ordered.dateSource,
+        previousTag: ordered.previous?.tag,
+        commits: parseReleaseCommits(stdout),
+      });
+    }
+    return releases;
   }
 }
